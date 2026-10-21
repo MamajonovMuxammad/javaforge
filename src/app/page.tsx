@@ -85,8 +85,13 @@ function JavaForgeApp() {
       if (parsed >= 1 && parsed <= TOTAL_DAYS && parsed !== currentDay) {
         setCurrentDay(parsed);
       }
+    } else if (progress.completedDays.length > 0) {
+      const nextDay = Math.min(TOTAL_DAYS, Math.max(...progress.completedDays) + 1);
+      if (nextDay !== currentDay) {
+        setCurrentDay(nextDay);
+      }
     }
-  }, [searchParams, currentDay]);
+  }, [searchParams, currentDay, progress.completedDays]);
 
   const handleStartCourse = (day = 1) => {
     setCurrentDay(day);

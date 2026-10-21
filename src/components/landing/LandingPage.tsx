@@ -72,9 +72,13 @@ export function LandingPage({
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   const completedCount = progress.completedDays.length;
+  const nextDayToLearn = Math.min(
+    65,
+    progress.completedDays.length > 0 ? Math.max(...progress.completedDays) + 1 : 1
+  );
 
-  const handleCourseAction = (day = 1) => {
-    onStartCourse(day);
+  const handleCourseAction = (day?: number) => {
+    onStartCourse(day ?? nextDayToLearn);
   };
 
   const toggleFaq = (idx: number) => {
@@ -170,11 +174,11 @@ export function LandingPage({
 
             <button
               type="button"
-              onClick={() => handleCourseAction(completedCount > 0 ? completedCount : 1)}
+              onClick={() => handleCourseAction(nextDayToLearn)}
               className="group relative flex items-center gap-1.5 overflow-hidden rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:brightness-110 active:scale-95"
             >
               {!auth.isAuthenticated && <Lock className="h-3 w-3 opacity-80" />}
-              <span>{completedCount > 0 ? "Продолжить обучение" : "К тренажеру"}</span>
+              <span>{completedCount > 0 ? `Продолжить (День ${nextDayToLearn})` : "К тренажеру"}</span>
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
             </button>
           </div>
@@ -209,11 +213,11 @@ export function LandingPage({
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-14">
             <button
               type="button"
-              onClick={() => handleCourseAction(1)}
+              onClick={() => handleCourseAction(nextDayToLearn)}
               className="w-full sm:w-auto group relative flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 px-8 py-4 text-sm sm:text-base font-bold text-white shadow-xl shadow-orange-500/30 transition hover:brightness-110 hover:shadow-orange-500/40 active:scale-95"
             >
               <Play className="h-4 w-4 fill-white" />
-              <span>Начать обучение бесплатно</span>
+              <span>{completedCount > 0 ? `Продолжить обучение (День ${nextDayToLearn})` : "Начать обучение бесплатно"}</span>
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </button>
 
