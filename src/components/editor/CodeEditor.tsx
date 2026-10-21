@@ -78,6 +78,50 @@ function getCleanInitialCode(
   return rawSaved;
 }
 
+interface QuickPreset {
+  label: string;
+  input: string;
+}
+
+/**
+ * Derives task-specific quick presets from task test cases or sample input.
+ */
+function getQuickPresets(currentTask?: LessonTask, lesson?: Lesson): QuickPreset[] {
+  const presets: QuickPreset[] = [];
+  const tests = currentTask?.tests ?? lesson?.tests ?? [];
+
+  for (const t of tests) {
+    if (t.stdin && t.stdin.trim()) {
+      const cleanInput = t.stdin.trim();
+      if (!presets.some((p) => p.input === cleanInput)) {
+        let label = t.label.replace(/^Тест\s*\d+:\s*/i, "").trim();
+        if (label.length > 28) {
+          label = label.slice(0, 27) + "…";
+        }
+        presets.push({
+          label: `⚡ ${label}`,
+          input: cleanInput,
+        });
+      }
+    }
+  }
+
+  if (presets.length === 0) {
+    const sample = currentTask?.sampleInput ?? currentTask?.exampleInput ?? lesson?.sampleInput;
+    if (sample && sample.trim()) {
+      const cleanSample = sample.trim();
+      const firstLine = cleanSample.split("\n")[0] || cleanSample;
+      const label = firstLine.length > 20 ? firstLine.slice(0, 19) + "…" : firstLine;
+      presets.push({
+        label: `⚡ Пример (${label})`,
+        input: cleanSample,
+      });
+    }
+  }
+
+  return presets.slice(0, 4);
+}
+
 export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: CodeEditorProps) {
   const toast = useToast();
   const progress = useProgress();
@@ -118,6 +162,13 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
   const isWaitingForInput = Boolean(
     runResult && runResult.status === "runtime_error" && runResult.stderr?.includes("NoSuchElementException")
   );
+
+  const quickPresets = getQuickPresets(currentTask, lesson);
+  const sampleLines = (currentTask?.sampleInput ?? currentTask?.exampleInput ?? lesson.sampleInput ?? "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const nextSampleVal = sampleLines[sessionInputs.length];
 
   // Debounced auto-save
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -735,9 +786,9 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
                         <span>Программа ожидает ввод с клавиатуры (Scanner)</span>
                       </div>
                       <p className="text-[11px] text-zinc-300">
-                        {sessionInputs.length === 0
-                          ? "Введи имя (например: Мухаммад или Ибрагим) в строке ❯ ниже и нажми Enter ↵"
-                          : "Введи год рождения (например: 2008 или 2005) в строке ❯ ниже и нажми Enter ↵"}
+                        {nextSampleVal
+                          ? `Введи следующее значение (например: ${nextSampleVal}) в строке ❯ ниже и нажми Enter ↵`
+                          : "Введи следующее значение в строке ❯ ниже и нажми Enter ↵"}
                       </p>
                     </div>
                   </div>
@@ -800,27 +851,21 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
                   <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px]">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-zinc-500 font-mono text-[10px]">Быстрый ввод:</span>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickFeed("Мухаммад\n2008")}
-                        className="rounded bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-2 py-0.5 text-[11px] text-zinc-300 transition flex items-center gap-1"
-                      >
-                        <span>⚡ Мухаммад (2008)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickFeed("Ибрагим\n2005")}
-                        className="rounded bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-2 py-0.5 text-[11px] text-zinc-300 transition flex items-center gap-1"
-                      >
-                        <span>⚡ Ибрагим (2005)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickFeed("Алекс\n2000")}
-                        className="rounded bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-2 py-0.5 text-[11px] text-zinc-300 transition flex items-center gap-1"
-                      >
-                        <span>⚡ Алекс (2000)</span>
-                      </button>
+                      {quickPresets.length > 0 ? (
+                        quickPresets.map((preset, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleQuickFeed(preset.input)}
+                            className="rounded bg-white/5 hover:bg-white/10 hover:text-white border border-white/10 px-2 py-0.5 text-[11px] text-zinc-300 transition flex items-center gap-1 active:scale-95"
+                            title={`Передать в System.in:\n${preset.input}`}
+                          >
+                            <span>{preset.label}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <span className="text-zinc-500 text-[10px]">Введи данные вручную через строку ❯</span>
+                      )}
                     </div>
 
                     {sessionInputs.length > 0 && (
@@ -852,11 +897,13 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
                     disabled={isRunning}
                     placeholder={
                       isWaitingForInput
-                        ? sessionInputs.length === 0
-                          ? "Введи имя (например: Мухаммад или Ибрагим) и нажми Enter ↵"
-                          : "Введи год рождения (например: 2008 или 2005) и нажми Enter ↵"
+                        ? nextSampleVal
+                          ? `Введи значение (например: ${nextSampleVal}) и нажми Enter ↵`
+                          : "Введи следующее значение и нажми Enter ↵"
                         : hasScanner
-                        ? "Введи данные для Scanner и нажми Enter ↵"
+                        ? nextSampleVal
+                          ? `Введи данные для Scanner (например: ${nextSampleVal}) и нажми Enter ↵`
+                          : "Введи данные для Scanner и нажми Enter ↵"
                         : "Ввод в System.in (нажми Enter для отправки)..."
                     }
                     className={`flex-1 rounded-md border bg-black/60 px-3 py-1.5 font-mono text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none transition ${
