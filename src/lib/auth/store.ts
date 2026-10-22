@@ -8,6 +8,7 @@ import {
   validateUsername,
   validatePassword,
 } from "./types";
+import { hydrateFromServer, resetStoreForLogout } from "@/lib/progress/store";
 
 const USERS_STORAGE_KEY = "javaforge_users_v2";
 const SESSION_STORAGE_KEY = "javaforge_session_v2";
@@ -365,19 +366,8 @@ export async function loginUser(
     };
     notify();
 
-    // Sync progress from database to local storage
-    if (typeof window !== "undefined") {
-      try {
-        const progRes = await fetch("/api/progress");
-        if (progRes.ok) {
-          const progData = await progRes.json();
-          if (progData.progress) {
-            localStorage.setItem("javaforge:progress:v1", JSON.stringify(progData.progress));
-            window.dispatchEvent(new Event("storage"));
-          }
-        }
-      } catch {}
-    }
+    // Database-first hydration: pull all progress, code, and completed days directly from Supabase
+    await hydrateFromServer(true);
 
     return { success: true, user: sessionUser };
   } catch {
@@ -399,4 +389,5 @@ export async function logoutUser(): Promise<void> {
     isAuthenticated: false,
   };
   notify();
+  resetStoreForLogout();
 }

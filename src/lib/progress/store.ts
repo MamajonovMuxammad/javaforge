@@ -27,7 +27,61 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
+let isHydrating = false;
+
+/**
+ * Hydrates progress directly from the backend database (Supabase PostgreSQL).
+ * Automatically updates in-memory state and local storage cache.
+ */
+export async function hydrateFromServer(force = false): Promise<ProgressState | null> {
+  if (typeof window === "undefined" || (isHydrating && !force)) return null;
+  isHydrating = true;
+  try {
+    const res = await fetch("/api/progress", {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.progress) {
+        const serverProgress = data.progress as ProgressState;
+        state = serverProgress;
+        loaded = true;
+        storage.save(serverProgress);
+        emit();
+        return serverProgress;
+      }
+    }
+  } catch (err) {
+    console.warn("[Database] Failed to hydrate progress from server:", err);
+  } finally {
+    isHydrating = false;
+  }
+  return null;
+}
+
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Flushes any pending progress updates to the server immediately (e.g. before page unload).
+ */
+export function flushSync(): void {
+  if (typeof window === "undefined") return;
+  if (syncTimer) {
+    clearTimeout(syncTimer);
+    syncTimer = null;
+  }
+  if (state) {
+    try {
+      fetch("/api/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {}
+  }
+}
 
 function syncToServer(nextState: ProgressState) {
   if (typeof window === "undefined") return;
@@ -42,11 +96,10 @@ function syncToServer(nextState: ProgressState) {
       if (res.ok) {
         const data = await res.json();
         if (data.progress && Array.isArray(data.progress.completedDays)) {
-          // If server has more completed days or higher XP from merged sources
-          if (
-            data.progress.completedDays.length > nextState.completedDays.length ||
-            (data.progress.xp && data.progress.xp > nextState.xp)
-          ) {
+          // If server merged state with previously completed days or tasks
+          const serverDays = data.progress.completedDays.length;
+          const currentDays = nextState.completedDays.length;
+          if (serverDays >= currentDays || (data.progress.xp && data.progress.xp >= nextState.xp)) {
             state = data.progress;
             storage.save(data.progress);
             emit();
@@ -56,7 +109,7 @@ function syncToServer(nextState: ProgressState) {
     } catch {
       // Offline: progress is safely preserved in localStorage
     }
-  }, 1200);
+  }, 400); // Fast 400ms debounce for immediate database persistence
 }
 
 function commit(next: ProgressState) {
@@ -64,6 +117,36 @@ function commit(next: ProgressState) {
   storage.save(next);
   syncToServer(next);
   emit();
+}
+
+export function resetStoreForLogout(): void {
+  const empty = createDefaultProgress();
+  state = empty;
+  storage.clear();
+  emit();
+}
+
+// Lifecycle listeners for seamless multi-device / multi-tab syncing
+if (typeof window !== "undefined") {
+  // 1. Initial hydration from database on startup
+  setTimeout(() => hydrateFromServer(), 10);
+
+  // 2. Re-hydrate from database when user returns to tab (switched from another browser/tab)
+  window.addEventListener("focus", () => {
+    hydrateFromServer();
+  });
+
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      flushSync();
+    } else if (document.visibilityState === "visible") {
+      hydrateFromServer();
+    }
+  });
+
+  window.addEventListener("beforeunload", () => {
+    flushSync();
+  });
 }
 
 let unwatchStorage: (() => void) | undefined;

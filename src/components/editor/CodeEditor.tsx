@@ -172,9 +172,11 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
 
   // Debounced auto-save
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasUserEditedRef = useRef<boolean>(false);
 
   // When switching day or active task
   useEffect(() => {
+    hasUserEditedRef.current = false;
     // Clear any pending debounced auto-save from previous task immediately
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -200,13 +202,29 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
     setActiveTab("terminal");
   }, [lesson.day, taskId, currentTask?.starterCode, currentTask?.sampleInput, lesson.starterCode, lesson.sampleInput, tasks]);
 
+  // When progress hydrates from database in background, update editor code if unedited
+  useEffect(() => {
+    const freshCodeKey = `${lesson.day}_${taskId}`;
+    const serverSaved = progress.code[freshCodeKey];
+    if (serverSaved && !hasUserEditedRef.current) {
+      setCode((currentCode) => {
+        const starter = currentTask?.starterCode ?? lesson.starterCode ?? "";
+        if (currentCode === starter || !currentCode.trim() || currentCode === starter.trim()) {
+          return serverSaved;
+        }
+        return currentCode;
+      });
+    }
+  }, [progress.code, lesson.day, taskId, currentTask?.starterCode, lesson.starterCode]);
+
   const handleCodeChange = (newCode?: string) => {
+    hasUserEditedRef.current = true;
     const val = newCode ?? "";
     setCode(val);
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       saveCode(lesson.day, val, taskId);
-    }, 600);
+    }, 400);
   };
 
   const handleReset = () => {

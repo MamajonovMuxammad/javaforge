@@ -52,7 +52,10 @@ export async function GET(request: Request) {
       },
     };
 
-    return NextResponse.json({ progress: state });
+    return NextResponse.json(
+      { progress: state, source: "database" },
+      { headers: { "Cache-Control": "no-store, max-age=0, must-revalidate" } }
+    );
   } catch (err: unknown) {
     console.error("GET /api/progress error:", err);
     return NextResponse.json({ error: "Ошибка загрузки прогресса" }, { status: 500 });
