@@ -309,6 +309,56 @@ export function ModuleZeroView({ isCompleted = false, onComplete, onNext }: Modu
         </div>
       </div>
 
+      {/* W3Schools Standard: Java Syntax & Example Explained */}
+      <section className="rounded-2xl border border-sky-500/20 bg-sky-950/10 p-5 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="rounded-lg bg-sky-500/20 text-sky-400 p-1.5 font-mono text-xs font-bold">W3Schools Standard</span>
+            <h2 className="text-lg sm:text-xl font-bold text-white">Java Syntax & Example Explained</h2>
+          </div>
+          <span className="text-xs text-zinc-400 hidden sm:inline">Золотой стандарт обучения</span>
+        </div>
+
+        <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">
+          В Java весь исполняемый код обязан находиться внутри класса. Имя класса обязано начинаться с заглавной буквы.
+        </p>
+
+        <div className="rounded-xl border border-white/10 bg-zinc-950 p-4 font-mono text-xs sm:text-sm text-zinc-200 shadow-inner">
+          <div className="text-zinc-500 text-[11px] mb-2 border-b border-white/5 pb-1">Main.java</div>
+          <p><span className="text-orange-400">public class</span> <span className="text-yellow-300">Main</span> {"{"}</p>
+          <p className="pl-4"><span className="text-orange-400">public static void</span> <span className="text-blue-300">main</span>(String[] args) {"{"}</p>
+          <p className="pl-8"><span className="text-zinc-400">System.out.</span><span className="text-purple-400">println</span>(<span className="text-emerald-300">&quot;Hello World&quot;</span>);</p>
+          <p className="pl-4">{"}"}</p>
+          <p>{"}"}</p>
+        </div>
+
+        <div className="space-y-2 pt-2">
+          <h3 className="text-sm font-bold text-sky-300 uppercase tracking-wide text-[11px]">Example explained:</h3>
+          <ul className="space-y-2 text-xs text-zinc-300">
+            <li className="flex items-start gap-2">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+              <span><strong className="text-white">Every line of code:</strong> Вся логика в Java пишется строго внутри <code className="text-sky-300 font-mono">class</code>. В примере класс назван <code className="text-yellow-300 font-mono">Main</code>.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+              <span><strong className="text-white">Main method:</strong> Метод <code className="text-blue-300 font-mono">main()</code> обязателен в каждой исполняемой Java-программе — это стартовая дверь для JVM.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+              <span><strong className="text-white">System.out.println():</strong> Встроенный метод для вывода строки текста на экран консоли.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+              <span><strong className="text-white">Semicolon (;):</strong> Каждое утверждение (statement) обязательно завершается точкой с запятой.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+              <span><strong className="text-white">Case-sensitive:</strong> Java строго чувствительна к регистру: <code className="text-yellow-300 font-mono">MyClass</code> и <code className="text-yellow-300 font-mono">myclass</code> считаются двумя абсолютно разными сущностями.</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
       {/* 2. Interactive Code Anatomy Inspector (Ключевая фича) */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">

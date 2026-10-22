@@ -9,13 +9,13 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
   sanitized: ProgressState;
   calculatedXp: number;
 } {
-  // 1. Sanitize completedDays: only integers between 0 and 70 (Module 0 to Module 5)
+  // 1. Sanitize completedDays: only integers between 0 and 120 (Module 0 to Module 8)
   const rawDays = Array.isArray(rawState.completedDays) ? rawState.completedDays : [];
   const completedDays = Array.from(
     new Set(
       rawDays
         .map((d) => Number(d))
-        .filter((d) => Number.isInteger(d) && d >= 0 && d <= 70)
+        .filter((d) => Number.isInteger(d) && d >= 0 && d <= 120)
     )
   ).sort((a, b) => a - b);
 
@@ -30,7 +30,7 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
   const completedTasks: Record<string, string[]> = {};
   for (const [dayStr, tasks] of Object.entries(rawTasks)) {
     const dayNum = Number(dayStr);
-    if (Number.isInteger(dayNum) && dayNum >= 0 && dayNum <= 70 && Array.isArray(tasks)) {
+    if (Number.isInteger(dayNum) && dayNum >= 0 && dayNum <= 120 && Array.isArray(tasks)) {
       // Clean task IDs
       const cleanTaskIds = Array.from(
         new Set(

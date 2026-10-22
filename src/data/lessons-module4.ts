@@ -1,14 +1,9 @@
 import type { Lesson, LessonTask } from "./types";
 
-function withDefaults(
-  l: Omit<Lesson, "starterCode" | "tests" | "requiredCode" | "hints" | "solution" | "sampleInput" | "theory"> & {
-    theory?: Lesson["theory"];
-  }
-): Lesson {
+function withDefaults(l: Omit<Lesson, "starterCode" | "tests" | "requiredCode" | "hints" | "solution" | "sampleInput">): Lesson {
   const mainTask = l.tasks[0];
   return {
     ...l,
-    theory: l.theory ?? [],
     task: mainTask,
     starterCode: mainTask.starterCode,
     sampleInput: mainTask.sampleInput,
@@ -21,1170 +16,1113 @@ function withDefaults(
 
 export const module4Lessons: Lesson[] = [
   /* ------------------------------------------------------------------ */
-  /*  DAY 36: Введение в базы данных и PostgreSQL                       */
+  /*  DAY 21: Java Methods (Создание и вызов методов)                   */
   /* ------------------------------------------------------------------ */
   withDefaults({
-    day: 36,
+    day: 21,
     moduleId: 4,
-    title: "Введение в базы данных и PostgreSQL",
-    short: "Реляционные СУБД, клиент-серверная архитектура, маппинг типов данных",
-    difficulty: "Средний",
+    title: "Java Methods: объявление методов, вызов и принцип DRY",
+    short: "Синтаксис public static void myMethod(), вызов из main и DRY",
+    difficulty: "Лёгкий",
     duration: "~2 часа",
     xp: 100,
     ready: true,
-    topics: ["RDBMS vs NoSQL", "PostgreSQL", "Типы данных SQL и Java", "Персистентность"],
+    topics: [
+      "Что такое метод: именованный блок кода для повторного использования",
+      "Принцип DRY: Don't Repeat Yourself (не повторяйся)",
+      "Синтаксис объявления метода: public static void methodName()",
+      "Вызов метода из метода main()",
+      "Многократный вызов и порядок выполнения команд",
+      "Правила именования методов: глагол в camelCase (printReport, calculateTax)",
+    ],
     videos: [
-      { author: "Алишев", query: "Алишев базы данных PostgreSQL для начинающих", note: "Основы баз данных" },
-      { author: "Заур Трегулов", query: "Заур Трегулов SQL базы данных основы", note: "Реляционные базы данных" },
+      { author: "Алишев", query: "Алишев Java методы с нуля", note: "Методы в Java для начинающих" },
+      { author: "Заур Трегулов", query: "Заур Трегулов методы Java вызов сигнатура", note: "Объявление и вызов методов" },
     ],
     theory: [
-      { type: "h", text: "Зачем бэкенду базы данных?" },
+      { type: "h", text: "Что такое метод в Java?" },
       {
         type: "p",
-        text: "Переменные в памяти Java живут только до перезапуска JVM. СУБД (PostgreSQL) сохраняет данные на диск с гарантиями надежности ACID. Каждому типу данных в PostgreSQL соответствует определенный ссылочный тип в Java.",
+        text: "Метод — это блок кода, выполняющий определённое действие и запускаемый только тогда, когда его **вызывают**. Методы позволяют разбить большую программу на независимые, переиспользуемые кирпичики.",
       },
       {
-        type: "table",
-        head: ["PostgreSQL тип", "Java тип", "Назначение"],
-        rows: [
-          ["BIGSERIAL / BIGINT", "Long", "Идентификаторы ID, первичные ключи"],
-          ["INT / INTEGER", "Integer", "Количество, возраст, счетчики"],
-          ["VARCHAR(n) / TEXT", "String", "Строки, имена, описания"],
-          ["BOOLEAN", "Boolean", "Флаги true / false"],
-          ["NUMERIC(12, 2)", "BigDecimal", "Деньги, финансовые расчеты"],
+        type: "code",
+        caption: "Создание и вызов метода (W3Schools)",
+        code: `public class Main {
+    // 1. Объявляем собственный метод
+    public static void myMethod() {
+        System.out.println("Я метод myMethod, меня вызвали!");
+    }
+
+    public static void main(String[] args) {
+        // 2. Вызываем метод из main
+        myMethod();
+        myMethod(); // можно вызывать сколько угодно раз!
+    }
+}`,
+      },
+      { type: "h", text: "Анатомия объявления метода" },
+      {
+        type: "list",
+        items: [
+          "`public` — метод открыт и доступен для вызова.",
+          "`static` — метод принадлежит классу `Main`, его можно вызывать напрямую из статического `main` без создания объекта `new Main()`.",
+          "`void` — метод выполняет инструкции и **ничего не возвращает** в качестве результата.",
+          "`myMethod()` — имя метода, за которым следуют круглые скобки `()` для передачи параметров.",
+          "`{ ... }` — тело метода, содержащее исполняемые инструкции.",
         ],
       },
     ],
     tasks: [
       {
-        id: "d36_t1",
+        id: "d21_t1",
         type: "warmup",
-        title: "Задача 1: Разминка (SQL-маппер типов данных)",
-        shortDesc: "Преобразование типов данных PostgreSQL в типы Java",
+        title: "Задача 1: Разминка (Печать разделителя и заголовка)",
+        shortDesc: "Создай статический метод printDivider() и вызови его трижды",
         difficulty: "Лёгкий",
         xp: 25,
         description:
-          "Напиши программу, которая считывает имя типа данных PostgreSQL со стандартного ввода и выводит соответствующий ему тип в Java.\n" +
-          "Поддерживаемые типы:\n" +
-          "• `BIGINT` -> `Long`\n" +
-          "• `INT` -> `Integer`\n" +
-          "• `VARCHAR` -> `String`\n" +
-          "• `BOOLEAN` -> `Boolean`\n" +
-          "• `NUMERIC` -> `BigDecimal`\n" +
-          "Если тип неизвестен, выведи `Unknown`.",
-        sampleInput: "BIGINT",
-        exampleOutput: "Тип в Java: Long",
-        starterCode: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String pgType = scanner.nextLine().trim().toUpperCase();
-
-        // TODO: сопоставь pgType и выведи "Тип в Java: <JavaType>"
-    }
-}
-`,
-        hints: [
-          "Используй конструкцию switch-case или if-else для сопоставления строки pgType.",
-          "Формат вывода: System.out.println(\"Тип в Java: \" + javaType);",
+          "Создай метод `public static void printDivider()`, который печатает строку `====================` (20 знаков равно).\nВ методе `main` вызови метод `printDivider()` до и после печати названия отчета:\n`====================`\n`ОТЧЕТ О СИСТЕМЕ JAVA`\n`====================`",
+        requirements: [
+          "Объяви метод `public static void printDivider()`.",
+          "Вызови его дважды в методе `main`.",
         ],
-        solution: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String pgType = scanner.nextLine().trim().toUpperCase();
-
-        String javaType = switch (pgType) {
-            case "BIGINT" -> "Long";
-            case "INT" -> "Integer";
-            case "VARCHAR" -> "String";
-            case "BOOLEAN" -> "Boolean";
-            case "NUMERIC" -> "BigDecimal";
-            default -> "Unknown";
-        };
-
-        System.out.println("Тип в Java: " + javaType);
-    }
-}
-`,
-        tests: [
-          { label: "Тест BIGINT", stdin: "BIGINT\n", expected: ["Тип в Java: Long"] },
-          { label: "Тест NUMERIC", stdin: "NUMERIC\n", expected: ["Тип в Java: BigDecimal"] },
-          { label: "Тест VARCHAR", stdin: "varchar\n", expected: ["Тип в Java: String"] },
-        ],
-      },
-      {
-        id: "d36_t2",
-        type: "practice",
-        title: "Задача 2: Практика (Валидатор имени таблицы SQL)",
-        shortDesc: "Проверка snake_case и запрещенных ключевых слов",
-        difficulty: "Средний",
-        xp: 35,
-        description:
-          "В PostgreSQL имена таблиц принято именовать в snake_case (строчные английские буквы и подчеркивания, начинается с буквы).\n" +
-          "Также запрещено использовать ключевые зарезервированные слова SQL: `USER`, `ORDER`, `TABLE`, `SELECT`.\n" +
-          "Считай строку и выведи `OK`, если имя корректно, либо `INVALID`.",
-        sampleInput: "order_items",
-        exampleOutput: "OK",
-        starterCode: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String name = scanner.nextLine().trim();
-
-        // TODO: проверь name на соответствие snake_case и отсутствие зарезервированных слов
-    }
-}
-`,
-        hints: [
-          "Регулярное выражение для snake_case: ^[a-z][a-z0-9_]*$",
-          "Проверь также, что name.toUpperCase() не совпадает с зарезервированными словами.",
-        ],
-        solution: `import java.util.Scanner;
-import java.util.Set;
-
-public class Main {
-    private static final Set<String> RESERVED = Set.of("USER", "ORDER", "TABLE", "SELECT");
+        exampleOutput: "====================\nОТЧЕТ О СИСТЕМЕ JAVA\n====================",
+        starterCode: `public class Main {
+    // TODO: объяви метод printDivider()
 
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String name = scanner.nextLine().trim();
-
-        boolean isSnakeCase = name.matches("^[a-z][a-z0-9_]*$");
-        boolean isReserved = RESERVED.contains(name.toUpperCase());
-
-        if (isSnakeCase && !isReserved) {
-            System.out.println("OK");
-        } else {
-            System.out.println("INVALID");
-        }
-    }
-}
-`,
-        tests: [
-          { label: "Корректное имя order_items", stdin: "order_items\n", expected: ["OK"] },
-          { label: "Зарезервированное слово order", stdin: "order\n", expected: ["INVALID"] },
-          { label: "Неверный формат с заглавной OrderItems", stdin: "OrderItems\n", expected: ["INVALID"] },
-        ],
-      },
-      {
-        id: "d36_t3",
-        type: "homework",
-        title: "Задача 3: Домашка (Генератор DDL CREATE TABLE)",
-        shortDesc: "Построение DDL скрипта по списку колонок",
-        difficulty: "Сложный",
-        xp: 40,
-        description:
-          "Напиши генератор DDL таблицы. Программа считывает имя таблицы и количество полей N, затем N строк вида `имя_колонки тип_колонки`.\n" +
-          "Программа должна вывести SQL-запрос `CREATE TABLE <имя> (id BIGSERIAL PRIMARY KEY, <поля>);` с полями через запятую.",
-        sampleInput: "products\n2\ntitle VARCHAR(100)\nprice NUMERIC(10, 2)",
-        exampleOutput: "CREATE TABLE products (id BIGSERIAL PRIMARY KEY, title VARCHAR(100), price NUMERIC(10, 2));",
-        starterCode: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String tableName = scanner.nextLine().trim();
-        int n = Integer.parseInt(scanner.nextLine().trim());
-
-        // TODO: прочитай n колонок и собери SQL DDL строку
-    }
-}
-`,
-        hints: [
-          "Используй StringBuilder или String.join для объединения колонок.",
-          "Первой колонкой всегда идет 'id BIGSERIAL PRIMARY KEY'.",
-        ],
-        solution: `import java.util.Scanner;
-import java.util.ArrayList;
-import java.util.List;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String tableName = scanner.nextLine().trim();
-        int n = Integer.parseInt(scanner.nextLine().trim());
-
-        List<String> columns = new ArrayList<>();
-        columns.add("id BIGSERIAL PRIMARY KEY");
-        for (int i = 0; i < n; i++) {
-            columns.add(scanner.nextLine().trim());
-        }
-
-        String sql = "CREATE TABLE " + tableName + " (" + String.join(", ", columns) + ");";
-        System.out.println(sql);
+        // TODO: вызови printDivider(), напечатай текст отчета и снова printDivider()
     }
 }
 `,
         tests: [
           {
-            label: "Таблица товаров",
-            stdin: "products\n2\ntitle VARCHAR(100)\nprice NUMERIC(10, 2)\n",
-            expected: ["CREATE TABLE products (id BIGSERIAL PRIMARY KEY, title VARCHAR(100), price NUMERIC(10, 2));"],
-          },
-          {
-            label: "Таблица пользователей",
-            stdin: "users\n1\nemail VARCHAR(255)\n",
-            expected: ["CREATE TABLE users (id BIGSERIAL PRIMARY KEY, email VARCHAR(255));"],
-          },
-        ],
-      },
-    ],
-  }),
-
-  /* ------------------------------------------------------------------ */
-  /*  DAY 37: DDL: CREATE, ALTER, DROP                                  */
-  /* ------------------------------------------------------------------ */
-  withDefaults({
-    day: 37,
-    moduleId: 4,
-    title: "DDL: CREATE, ALTER, DROP",
-    short: "Ограничения целостности PRIMARY KEY, UNIQUE, NOT NULL, CHECK",
-    difficulty: "Средний",
-    duration: "~2 часа",
-    xp: 100,
-    ready: true,
-    topics: ["CREATE TABLE", "ALTER TABLE", "CHECK", "UNIQUE / NOT NULL"],
-    videos: [
-      { author: "Заур Трегулов", query: "Заур Трегулов SQL CREATE TABLE", note: "Создание таблиц и ключей" },
-      { author: "Алишев", query: "Алишев SQL DDL таблицы ограничения", note: "Ограничения целостности" },
-    ],
-    tasks: [
-      {
-        id: "d37_t1",
-        type: "warmup",
-        title: "Задача 1: Разминка (Валидатор CHECK ограничения)",
-        shortDesc: "Проверка бизнес-правил перед сохранением в базу данных",
-        difficulty: "Лёгкий",
-        xp: 25,
-        description:
-          "В таблице задано ограничение `CHECK (age >= 18 AND balance >= 0)`. Считай с консоли `age` (int) и `balance` (double). Выведи `ALLOWED`, если значения удовлетворяют ограничению, иначе `VIOLATION`.",
-        sampleInput: "20 150.5",
-        exampleOutput: "ALLOWED",
-        starterCode: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int age = scanner.nextInt();
-        double balance = scanner.nextDouble();
-
-        // TODO: проверь age >= 18 и balance >= 0
-    }
-}
-`,
-        hints: ["Используй оператор && для проверки обоих условий одновременно."],
-        solution: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int age = scanner.nextInt();
-        double balance = scanner.nextDouble();
-
-        if (age >= 18 && balance >= 0) {
-            System.out.println("ALLOWED");
-        } else {
-            System.out.println("VIOLATION");
-        }
-    }
-}
-`,
-        tests: [
-          { label: "Корректный возраст и баланс", stdin: "20 150.5\n", expected: ["ALLOWED"] },
-          { label: "Несовершеннолетний age=17", stdin: "17 100\n", expected: ["VIOLATION"] },
-          { label: "Отрицательный баланс", stdin: "25 -10\n", expected: ["VIOLATION"] },
-        ],
-      },
-      {
-        id: "d37_t2",
-        type: "practice",
-        title: "Задача 2: Практика (ALTER TABLE: добавление колонки)",
-        shortDesc: "Генератор команды ALTER TABLE ADD COLUMN",
-        difficulty: "Средний",
-        xp: 35,
-        description:
-          "Напиши программу, генерирующую SQL запрос для добавления колонки.\n" +
-          "На вход подаются: `имя_таблицы`, `имя_колонки`, `тип_колонки`, `значение_по_умолчанию`.\n" +
-          "Выведи: `ALTER TABLE <table_name> ADD COLUMN <col_name> <col_type> DEFAULT <default_val>;`",
-        sampleInput: "users is_active BOOLEAN true",
-        exampleOutput: "ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT true;",
-        starterCode: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String table = scanner.next();
-        String col = scanner.next();
-        String type = scanner.next();
-        String defVal = scanner.next();
-
-        // TODO: выведи SQL команду ALTER TABLE
-    }
-}
-`,
-        hints: ["Склей параметры в строку согласно шаблону ALTER TABLE."],
-        solution: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String table = scanner.next();
-        String col = scanner.next();
-        String type = scanner.next();
-        String defVal = scanner.next();
-
-        System.out.println("ALTER TABLE " + table + " ADD COLUMN " + col + " " + type + " DEFAULT " + defVal + ";");
-    }
-}
-`,
-        tests: [
-          {
-            label: "Добавление is_active",
-            stdin: "users is_active BOOLEAN true\n",
-            expected: ["ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT true;"],
-          },
-        ],
-      },
-      {
-        id: "d37_t3",
-        type: "homework",
-        title: "Задача 3: Домашка (Проверка уникальности UNIQUE)",
-        shortDesc: "Симулятор UNIQUE ограничения с помощью Set",
-        difficulty: "Сложный",
-        xp: 40,
-        description:
-          "Смоделируй работу UNIQUE индекса. На вход подается число N, затем N email-адресов.\n" +
-          "Для каждого адреса выведи `INSERT OK`, если email еще не встречался в базе, либо `ERROR: duplicate key value`.",
-        sampleInput: "4\nalex@mail.com\nbob@mail.com\nalex@mail.com\ncat@mail.com",
-        exampleOutput: "INSERT OK\nINSERT OK\nERROR: duplicate key value\nINSERT OK",
-        starterCode: `import java.util.Scanner;
-import java.util.HashSet;
-import java.util.Set;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int n = Integer.parseInt(scanner.nextLine().trim());
-        Set<String> uniqueEmails = new HashSet<>();
-
-        // TODO: проверь каждый email через set.add()
-    }
-}
-`,
-        hints: ["Метод set.add(item) возвращает true, если элемент новый, и false, если дубликат."],
-        solution: `import java.util.Scanner;
-import java.util.HashSet;
-import java.util.Set;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int n = Integer.parseInt(scanner.nextLine().trim());
-        Set<String> uniqueEmails = new HashSet<>();
-
-        for (int i = 0; i < n; i++) {
-            String email = scanner.nextLine().trim().toLowerCase();
-            if (uniqueEmails.add(email)) {
-                System.out.println("INSERT OK");
-            } else {
-                System.out.println("ERROR: duplicate key value");
-            }
-        }
-    }
-}
-`,
-        tests: [
-          {
-            label: "Дубликаты email",
-            stdin: "4\nalex@mail.com\nbob@mail.com\nalex@mail.com\ncat@mail.com\n",
+            label: "Проверка разделителей",
             expected: [
-              "INSERT OK",
-              "INSERT OK",
-              "ERROR: duplicate key value",
-              "INSERT OK",
+              "====================",
+              "ОТЧЕТ О СИСТЕМЕ JAVA",
+              "====================",
             ],
           },
         ],
-      },
-    ],
-  }),
+        requiredCode: [
+          { pattern: "static\\s+void\\s+printDivider\\s*\\(", message: "Создай метод static void printDivider()" },
+        ],
+        hints: ["`public static void printDivider() { System.out.println(\"====================\"); }`"],
+        solution: `public class Main {
+    public static void printDivider() {
+        System.out.println("====================");
+    }
 
-  /* ------------------------------------------------------------------ */
-  /*  DAY 38: DML: INSERT, UPDATE, DELETE, SELECT                       */
-  /* ------------------------------------------------------------------ */
-  withDefaults({
-    day: 38,
-    moduleId: 4,
-    title: "DML: INSERT, UPDATE, DELETE, SELECT",
-    short: "Базовый CRUD в SQL, RETURNING и транзакционная безопасность",
-    difficulty: "Средний",
-    duration: "~2 часа",
-    xp: 100,
-    ready: true,
-    topics: ["INSERT", "UPDATE", "DELETE", "SELECT", "CRUD"],
-    videos: [
-      { author: "Заур Трегулов", query: "Заур Трегулов SQL INSERT UPDATE DELETE", note: "Манипуляция данными DML" },
-      { author: "Алишев", query: "Алишев SQL запросы SELECT", note: "Выборка и фильтрация строк" },
-    ],
-    tasks: [
-      {
-        id: "d38_t1",
-        type: "warmup",
-        title: "Задача 1: Разминка (Параметризованный INSERT)",
-        shortDesc: "Генератор безопасного SQL INSERT запроса",
-        difficulty: "Лёгкий",
-        xp: 25,
-        description:
-          "Считай со стандартного ввода имя пользователя и баланс. Сформируй и выведи SQL-запрос вида:\n" +
-          "`INSERT INTO users (username, balance) VALUES ('<name>', <balance>) RETURNING id;`",
-        sampleInput: "timur 2500.50",
-        exampleOutput: "INSERT INTO users (username, balance) VALUES ('timur', 2500.50) RETURNING id;",
-        starterCode: `import java.util.Scanner;
-
-public class Main {
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String name = scanner.next();
-        String balance = scanner.next();
-
-        // TODO: собери INSERT запрос с RETURNING id;
+        printDivider();
+        System.out.println("ОТЧЕТ О СИСТЕМЕ JAVA");
+        printDivider();
     }
 }
 `,
-        hints: ["Одинарные кавычки обязательны вокруг строковых литералов в SQL."],
-        solution: `import java.util.Scanner;
+      },
+      {
+        id: "d21_t2",
+        type: "practice",
+        title: "Задача 2: Основная практика (Приветствие пользователя)",
+        shortDesc: "Метод sayHello, считывающий имя и печатающий приветствие",
+        difficulty: "Лёгкий",
+        xp: 35,
+        description:
+          "Создай метод `public static void sayHello(String name)`, принимающий строку `name` и выводящий `Привет, <name>! Добро пожаловать в JavaForge.`.\nВ методе `main` считай имя пользователя через `Scanner` и передай его в метод `sayHello`.",
+        requirements: [
+          "Метод `sayHello` должен принимать параметр `String name`.",
+          "Выведи приветствие.",
+        ],
+        exampleInput: "Тимур",
+        exampleOutput: "Привет, Тимур! Добро пожаловать в JavaForge.",
+        sampleInput: "Тимур",
+        starterCode: `import java.util.Scanner;
 
 public class Main {
+    // TODO: объяви метод sayHello(String name)
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        String name = scanner.next();
-        String balance = scanner.next();
+        String name = scanner.nextLine();
 
-        System.out.println("INSERT INTO users (username, balance) VALUES ('" + name + "', " + balance + ") RETURNING id;");
+        // TODO: вызови sayHello(name)
     }
 }
 `,
         tests: [
           {
-            label: "Создание тимура",
-            stdin: "timur 2500.50\n",
-            expected: ["INSERT INTO users (username, balance) VALUES ('timur', 2500.50) RETURNING id;"],
+            label: "Тимур",
+            stdin: "Тимур\n",
+            expected: ["Привет, Тимур! Добро пожаловать в JavaForge."],
           },
         ],
-      },
-      {
-        id: "d38_t2",
-        type: "practice",
-        title: "Задача 2: Практика (Защита от UPDATE без WHERE)",
-        shortDesc: "Валидатор условий в деструктивных запросах",
-        difficulty: "Средний",
-        xp: 35,
-        description:
-          "Выполнение `UPDATE` или `DELETE` без условия `WHERE` может стереть всю базу данных!\n" +
-          "Напиши валидатор: считай SQL-запрос. Если запрос начинается с `UPDATE` или `DELETE`, но в нем отсутствует слово `WHERE`, выведи `DANGER: missing WHERE clause!`. Иначе выведи `SAFE: query approved`.",
-        sampleInput: "UPDATE users SET balance = 0;",
-        exampleOutput: "DANGER: missing WHERE clause!",
-        starterCode: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String sql = scanner.nextLine().trim();
-
-        // TODO: проверь наличие WHERE при операциях UPDATE / DELETE
-    }
-}
-`,
-        hints: ["Приведи sql к верхнему регистру sql.toUpperCase() для надежной проверки."],
+        requiredCode: [{ pattern: "void\\s+sayHello\\s*\\(\\s*String", message: "Объяви sayHello(String name)" }],
+        hints: ["`public static void sayHello(String name) { System.out.println(\"Привет, \" + name + \"! Добро пожаловать в JavaForge.\"); }`"],
         solution: `import java.util.Scanner;
 
 public class Main {
+    public static void sayHello(String name) {
+        System.out.println("Привет, " + name + "! Добро пожаловать в JavaForge.");
+    }
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        String sql = scanner.nextLine().trim();
-        String upper = sql.toUpperCase();
-
-        boolean isDestructive = upper.startsWith("UPDATE") || upper.startsWith("DELETE");
-        boolean hasWhere = upper.contains("WHERE");
-
-        if (isDestructive && !hasWhere) {
-            System.out.println("DANGER: missing WHERE clause!");
-        } else {
-            System.out.println("SAFE: query approved");
-        }
+        String name = scanner.nextLine();
+        sayHello(name);
     }
 }
 `,
-        tests: [
-          { label: "Опасный UPDATE", stdin: "UPDATE users SET balance = 0;\n", expected: ["DANGER: missing WHERE clause!"] },
-          { label: "Безопасный DELETE", stdin: "DELETE FROM users WHERE id = 5;\n", expected: ["SAFE: query approved"] },
-          { label: "Обычный SELECT", stdin: "SELECT * FROM users;\n", expected: ["SAFE: query approved"] },
-        ],
       },
       {
-        id: "d38_t3",
+        id: "d21_t3",
         type: "homework",
-        title: "Задача 3: Домашка (In-Memory симулятор таблицы CRUD)",
-        shortDesc: "Реализация операций в памяти на основе Map",
-        difficulty: "Сложный",
+        title: "Задача 3: Домашнее задание (Рамка для текста)",
+        shortDesc: "Метод printBoxedMessage для красивого оформления текста в рамке",
+        difficulty: "Средний",
         xp: 40,
         description:
-          "Реализуй простой симулятор таблицы пользователей на Java.\n" +
-          "Команды:\n" +
-          "• `INSERT <name>` — сохраняет пользователя и присваивает автоинкрементный ID (начиная с 1). Выводит `CREATED <id>`.\n" +
-          "• `SELECT <id>` — выводит `USER <id>: <name>`, либо `NOT FOUND`.\n" +
-          "• `DELETE <id>` — удаляет пользователя и выводит `DELETED <id>`, либо `NOT FOUND`.\n" +
-          "Команда `EXIT` завершает программу.",
-        sampleInput: "INSERT Alice\nINSERT Bob\nSELECT 1\nDELETE 1\nSELECT 1\nEXIT",
-        exampleOutput: "CREATED 1\nCREATED 2\nUSER 1: Alice\nDELETED 1\nNOT FOUND",
+          "Создай метод `public static void printBox(String msg)`.\nМетод должен напечатать верхнюю границу из символов `+` и `-`, затем строку с текстом `| <msg> |`, а затем нижнюю границу.\nДлина границы рассчитывается динамически: `\"+\" + \"-\".repeat(msg.length() + 2) + \"+\"` (или циклом).\nДля текста `Java is awesome` вывод:\n`+-----------------+`\n`| Java is awesome |`\n`+-----------------+`",
+        requirements: [
+          "Создай метод `printBox(String msg)`.",
+          "Отрисуй рамку под длину строки.",
+        ],
+        exampleInput: "Java is awesome",
+        exampleOutput: "+-----------------+\n| Java is awesome |\n+-----------------+",
+        sampleInput: "Java is awesome",
         starterCode: `import java.util.Scanner;
-import java.util.HashMap;
-import java.util.Map;
 
 public class Main {
+    // TODO: объяви метод printBox(String msg)
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        Map<Integer, String> table = new HashMap<>();
-        int idSeq = 1;
-
-        // TODO: обрабатывай команды в цикле
-    }
-}
-`,
-        hints: ["Используй бесконечный цикл while(scanner.hasNext()), выходящий при команде EXIT."],
-        solution: `import java.util.Scanner;
-import java.util.HashMap;
-import java.util.Map;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        Map<Integer, String> table = new HashMap<>();
-        int idSeq = 1;
-
-        while (scanner.hasNext()) {
-            String cmd = scanner.next();
-            if (cmd.equals("EXIT")) break;
-
-            if (cmd.equals("INSERT")) {
-                String name = scanner.next();
-                int newId = idSeq++;
-                table.put(newId, name);
-                System.out.println("CREATED " + newId);
-            } else if (cmd.equals("SELECT")) {
-                int id = scanner.nextInt();
-                if (table.containsKey(id)) {
-                    System.out.println("USER " + id + ": " + table.get(id));
-                } else {
-                    System.out.println("NOT FOUND");
-                }
-            } else if (cmd.equals("DELETE")) {
-                int id = scanner.nextInt();
-                if (table.remove(id) != null) {
-                    System.out.println("DELETED " + id);
-                } else {
-                    System.out.println("NOT FOUND");
-                }
-            }
-        }
+        String text = scanner.nextLine();
+        // TODO: вызови printBox(text)
     }
 }
 `,
         tests: [
           {
-            label: "CRUD цикл",
-            stdin: "INSERT Alice\nINSERT Bob\nSELECT 1\nDELETE 1\nSELECT 1\nEXIT\n",
-            expected: ["CREATED 1", "CREATED 2", "USER 1: Alice", "DELETED 1", "NOT FOUND"],
-          },
-        ],
-      },
-    ],
-  }),
-
-  /* ------------------------------------------------------------------ */
-  /*  DAY 40: JOIN: соединяем таблицы                                   */
-  /* ------------------------------------------------------------------ */
-  withDefaults({
-    day: 40,
-    moduleId: 4,
-    title: "JOIN: соединяем таблицы",
-    short: "INNER JOIN, LEFT JOIN, связывание реляционных данных",
-    difficulty: "Средний",
-    duration: "~2 часа",
-    xp: 100,
-    ready: true,
-    topics: ["INNER JOIN", "LEFT JOIN", "ON условие", "Связи таблиц"],
-    videos: [
-      { author: "Заур Трегулов", query: "Заур Трегулов SQL JOIN", note: "Все виды JOIN наглядное объяснение" },
-      { author: "Алишев", query: "Алишев SQL JOIN объединение таблиц", note: "Практика соединений" },
-    ],
-    tasks: [
-      {
-        id: "d40_t1",
-        type: "warmup",
-        title: "Задача 1: Разминка (Симулятор INNER JOIN)",
-        shortDesc: "Объединение строк двух таблиц по общему ключу user_id",
-        difficulty: "Лёгкий",
-        xp: 25,
-        description:
-          "На вход подаются две сущности: пользователь `User(id, name)` и заказ `Order(orderId, userId, amount)`.\n" +
-          "Считай `user_id` пользователя и `user_id` заказа. Если они совпадают (INNER JOIN совпал), выведи `MATCH: <name> сделал заказ на <amount>`. Иначе выведи `NO MATCH`.",
-        sampleInput: "1 Alex\n101 1 500",
-        exampleOutput: "MATCH: Alex сделал заказ на 500",
-        starterCode: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int uId = scanner.nextInt();
-        String uName = scanner.next();
-        int oId = scanner.nextInt();
-        int oUserId = scanner.nextInt();
-        int amount = scanner.nextInt();
-
-        // TODO: сравни uId и oUserId
-    }
-}
-`,
-        hints: ["Если uId == oUserId, совпадение найдено."],
-        solution: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int uId = scanner.nextInt();
-        String uName = scanner.next();
-        int oId = scanner.nextInt();
-        int oUserId = scanner.nextInt();
-        int amount = scanner.nextInt();
-
-        if (uId == oUserId) {
-            System.out.println("MATCH: " + uName + " сделал заказ на " + amount);
-        } else {
-            System.out.println("NO MATCH");
-        }
-    }
-}
-`,
-        tests: [
-          { label: "Совпадение по ключу", stdin: "1 Alex 101 1 500\n", expected: ["MATCH: Alex сделал заказ на 500"] },
-          { label: "Разные ключи", stdin: "1 Alex 102 2 300\n", expected: ["NO MATCH"] },
-        ],
-      },
-      {
-        id: "d40_t2",
-        type: "practice",
-        title: "Задача 2: Практика (Симулятор LEFT JOIN)",
-        shortDesc: "Включение всех левых записей с NULL для пустых заказов",
-        difficulty: "Средний",
-        xp: 35,
-        description:
-          "LEFT JOIN гарантирует, что все пользователи из левой таблицы попадут в результат, даже если заказов у них нет.\n" +
-          "Даны пользователи: `Map<Integer, String> users` (id -> name) и заказы `Map<Integer, Integer> orders` (userId -> totalAmount).\n" +
-          "Для каждого пользователя выведи `User: <name>, Заказы: <amount>` (если заказа нет — `Заказы: NULL`).",
-        sampleInput: "2\n1 Alex\n2 Bob\n1\n1 1200",
-        exampleOutput: "User: Alex, Заказы: 1200\nUser: Bob, Заказы: NULL",
-        starterCode: `import java.util.Scanner;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int numUsers = scanner.nextInt();
-        Map<Integer, String> users = new LinkedHashMap<>();
-        for (int i = 0; i < numUsers; i++) {
-            users.put(scanner.nextInt(), scanner.next());
-        }
-
-        int numOrders = scanner.nextInt();
-        Map<Integer, Integer> orders = new LinkedHashMap<>();
-        for (int i = 0; i < numOrders; i++) {
-            orders.put(scanner.nextInt(), scanner.nextInt());
-        }
-
-        // TODO: выполни LEFT JOIN по ключу userId
-    }
-}
-`,
-        hints: ["Используй orders.get(userId), если вернется null — выведи 'NULL'."],
-        solution: `import java.util.Scanner;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int numUsers = scanner.nextInt();
-        Map<Integer, String> users = new LinkedHashMap<>();
-        for (int i = 0; i < numUsers; i++) {
-            users.put(scanner.nextInt(), scanner.next());
-        }
-
-        int numOrders = scanner.nextInt();
-        Map<Integer, Integer> orders = new LinkedHashMap<>();
-        for (int i = 0; i < numOrders; i++) {
-            orders.put(scanner.nextInt(), scanner.nextInt());
-        }
-
-        for (Map.Entry<Integer, String> entry : users.entrySet()) {
-            Integer amount = orders.get(entry.getKey());
-            String amountStr = (amount != null) ? String.valueOf(amount) : "NULL";
-            System.out.println("User: " + entry.getValue() + ", Заказы: " + amountStr);
-        }
-    }
-}
-`,
-        tests: [
-          {
-            label: "Один с заказом, второй без",
-            stdin: "2\n1 Alex\n2 Bob\n1\n1 1200\n",
+            label: "Java is awesome",
+            stdin: "Java is awesome\n",
             expected: [
-              "User: Alex, Заказы: 1200",
-              "User: Bob, Заказы: NULL",
+              "+-----------------+",
+              "| Java is awesome |",
+              "+-----------------+",
             ],
           },
         ],
-      },
-      {
-        id: "d40_t3",
-        type: "homework",
-        title: "Задача 3: Домашка (Агрегация суммы покупок через JOIN)",
-        shortDesc: "Подсчет итоговой выручки по каждому клиенту",
-        difficulty: "Сложный",
-        xp: 40,
-        description:
-          "На вход подается количество заказов N, далее N строк вида `client_name order_amount`.\n" +
-          "Один клиент мог сделать несколько заказов. Выведи список всех клиентов в алфавитном порядке и их общую сумму покупок вида `<client>: <total>`.",
-        sampleInput: "4\nAlex 500\nBob 300\nAlex 1500\nBob 200",
-        exampleOutput: "Alex: 2000\nBob: 500",
-        starterCode: `import java.util.Scanner;
-import java.util.TreeMap;
-import java.util.Map;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int n = Integer.parseInt(scanner.nextLine().trim());
-        Map<String, Integer> totals = new TreeMap<>(); // TreeMap автоматически сортирует ключи!
-
-        // TODO: считай n строк и аккумулируй суммы
-    }
-}
-`,
-        hints: ["Используй totals.merge(name, amount, Integer::sum) для быстрого сложения."],
+        hints: ["`String border = \"+\" + \"-\".repeat(msg.length() + 2) + \"+\";`"],
         solution: `import java.util.Scanner;
-import java.util.TreeMap;
-import java.util.Map;
 
 public class Main {
+    public static void printBox(String msg) {
+        String border = "+" + "-".repeat(msg.length() + 2) + "+";
+        System.out.println(border);
+        System.out.println("| " + msg + " |");
+        System.out.println(border);
+    }
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        int n = Integer.parseInt(scanner.nextLine().trim());
-        Map<String, Integer> totals = new TreeMap<>();
-
-        for (int i = 0; i < n; i++) {
-            String name = scanner.next();
-            int amount = scanner.nextInt();
-            totals.merge(name, amount, Integer::sum);
-        }
-
-        for (Map.Entry<String, Integer> entry : totals.entrySet()) {
-            System.out.println(entry.getKey() + ": " + entry.getValue());
-        }
+        String text = scanner.nextLine();
+        printBox(text);
     }
 }
 `,
-        tests: [
-          {
-            label: "Агрегация сумм заказов",
-            stdin: "4\nAlex 500\nBob 300\nAlex 1500\nBob 200\n",
-            expected: ["Alex: 2000", "Bob: 500"],
-          },
-        ],
       },
     ],
   }),
 
   /* ------------------------------------------------------------------ */
-  /*  DAY 45: JDBC: PreparedStatement и DAO                             */
+  /*  DAY 22: Java Method Parameters & Return (Параметры и return)      */
   /* ------------------------------------------------------------------ */
   withDefaults({
-    day: 45,
+    day: 22,
     moduleId: 4,
-    title: "JDBC: PreparedStatement и DAO",
-    short: "Защита от SQL-инъекций и архитектурный паттерн доступа к данным",
-    difficulty: "Средний",
+    title: "Java Method Parameters & Return: параметры и возвращаемые значения",
+    short: "Параметры, ключевое слово return, возвращаемые типы и Pass by Value",
+    difficulty: "Лёгкий",
     duration: "~2 часа",
     xp: 100,
     ready: true,
-    topics: ["PreparedStatement", "SQL Injection", "DAO паттерн"],
+    topics: [
+      "Параметры (в сигнатуре) vs Аргументы (при вызове)",
+      "Множественные параметры: void printSum(int a, int b)",
+      "Ключевое слово return: возврат значения из метода",
+      "Возвращаемые типы: int, double, boolean, String, массивы",
+      "Досрочный выход из метода через return;",
+      "Передача параметров по значению (Pass by Value) в Java",
+    ],
     videos: [
-      { author: "Алишев", query: "Алишев JDBC PreparedStatement DAO", note: "PreparedStatement и защита от инъекций" },
-      { author: "Заур Трегулов", query: "Заур Трегулов JDBC DAO", note: "Паттерн Data Access Object" },
+      { author: "Алишев", query: "Алишев Java метод return параметры", note: "Параметры и return подробно" },
+      { author: "Заур Трегулов", query: "Заур Трегулов return pass by value Java", note: "Pass by value и возвращаемые типы" },
+    ],
+    theory: [
+      { type: "h", text: "Возвращаемые значения и оператор return (W3Schools)" },
+      {
+        type: "p",
+        text: "Если метод должен вернуть результат вызывающему коду, вместо `void` указывается конкретный тип возвращаемого значения (`int`, `double`, `boolean`, `String` и т.д.), а в теле метода используется оператор `return`:",
+      },
+      {
+        type: "code",
+        caption: "Метод с возвращаемым значением",
+        code: `public class Main {
+    // Метод возвращает целое число int
+    public static int add(int x, int y) {
+        return x + y;
+    }
+
+    public static void main(String[] args) {
+        int result = add(5, 3);
+        System.out.println("Сумма: " + result); // 8
+    }
+}`,
+      },
+      { type: "h", text: "Передача параметров по значению (Pass by Value)" },
+      {
+        type: "callout",
+        variant: "warning",
+        title: "В Java ВСЕ параметры передаются по значению!",
+        text: "Когда ты передаёшь переменную в метод, метод получает её **копию**. Изменение значения аргумента внутри метода никак не влияет на исходную переменную снаружи!",
+      },
     ],
     tasks: [
       {
-        id: "d45_t1",
+        id: "d22_t1",
         type: "warmup",
-        title: "Задача 1: Разминка (Детектор SQL-инъекций)",
-        shortDesc: "Обнаружение опасных символов конкатенации в запросе",
+        title: "Задача 1: Разминка (Метод проверки чётности)",
+        shortDesc: "Создай метод isEven(int n), возвращающий boolean",
         difficulty: "Лёгкий",
         xp: 25,
         description:
-          "Злоумышленники используют кавычки `'`, оператор `--` (комментарий в SQL) и `OR 1=1` для обхода аутентификации.\n" +
-          "Напиши валидатор: если строка ввода содержит `'` или `--` или `OR 1=1` (без учета регистра), выведи `ATTACK DETECTED!`. Иначе выведи `INPUT SAFE`.",
-        sampleInput: "admin' OR 1=1--",
-        exampleOutput: "ATTACK DETECTED!",
+          "Создай метод `public static boolean isEven(int number)`, который возвращает `true`, если число чётное (`number % 2 == 0`), и `false`, если нечётное.\nВ методе `main` считай число `x`, вызови `isEven(x)` и выведи:\n`Число <x> чётное: <true/false>`",
+        requirements: [
+          "Метод должен возвращать `boolean`.",
+          "Выведи 1 строку.",
+        ],
+        exampleInput: "8",
+        exampleOutput: "Число 8 чётное: true",
+        sampleInput: "8",
         starterCode: `import java.util.Scanner;
 
 public class Main {
+    // TODO: объяви метод isEven(int number)
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        String input = scanner.nextLine();
+        int x = scanner.nextInt();
 
-        // TODO: проверь на наличие признаков SQL инъекции
-    }
-}
-`,
-        hints: ["Проверь input.contains(\"'\") || input.contains(\"--\") || input.toUpperCase().contains(\"OR 1=1\")"],
-        solution: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String input = scanner.nextLine();
-        String upper = input.toUpperCase();
-
-        if (input.contains("'") || input.contains("--") || upper.contains("OR 1=1")) {
-            System.out.println("ATTACK DETECTED!");
-        } else {
-            System.out.println("INPUT SAFE");
-        }
+        // TODO: вызови isEven(x) и напечатай результат
     }
 }
 `,
         tests: [
-          { label: "Классическая атака", stdin: "admin' OR 1=1--\n", expected: ["ATTACK DETECTED!"] },
-          { label: "Безопасный ввод", stdin: "alexander_ivanov\n", expected: ["INPUT SAFE"] },
+          { label: "8", stdin: "8\n", expected: ["Число 8 чётное: true"] },
+          { label: "15", stdin: "15\n", expected: ["Число 15 чётное: false"] },
         ],
+        requiredCode: [{ pattern: "boolean\\s+isEven\\s*\\(", message: "Объяви boolean isEven(int number)" }],
+        hints: ["`public static boolean isEven(int number) { return number % 2 == 0; }`"],
+        solution: `import java.util.Scanner;
+
+public class Main {
+    public static boolean isEven(int number) {
+        return number % 2 == 0;
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int x = scanner.nextInt();
+        System.out.println("Число " + x + " чётное: " + isEven(x));
+    }
+}
+`,
       },
       {
-        id: "d45_t2",
+        id: "d22_t2",
         type: "practice",
-        title: "Задача 2: Практика (Эмуляция параметров PreparedStatement)",
-        shortDesc: "Подстановка параметров вместо плейсхолдеров '?'",
-        difficulty: "Средний",
+        title: "Задача 2: Основная практика (Максимум из трёх чисел)",
+        shortDesc: "Создай метод findMax(int a, int b, int c)",
+        difficulty: "Лёгкий",
         xp: 35,
         description:
-          "PreparedStatement принимает шаблон запроса со знаками `?` и подставляет значения с экранированием.\n" +
-          "Дана строка `SELECT * FROM users WHERE email = ? AND status = ?;` и два параметра: `test@mail.com` и `ACTIVE`.\n" +
-          "Считай два параметра и выведи итоговый скомпилированный запрос с одинарными кавычками вокруг строковых параметров.",
-        sampleInput: "test@mail.com ACTIVE",
-        exampleOutput: "SELECT * FROM users WHERE email = 'test@mail.com' AND status = 'ACTIVE';",
+          "Создай метод `public static int maxOfThree(int a, int b, int c)`, который возвращает наибольшее из трёх чисел.\nВ `main` считай три целых числа и выведи:\n`Максимум: <результат>`",
+        requirements: [
+          "Метод должен возвращать `int`.",
+          "Выведи результат.",
+        ],
+        exampleInput: "15 42 28",
+        exampleOutput: "Максимум: 42",
+        sampleInput: "15\n42\n28",
         starterCode: `import java.util.Scanner;
 
 public class Main {
+    // TODO: объяви метод maxOfThree(int a, int b, int c)
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        String email = scanner.next();
-        String status = scanner.next();
+        int a = scanner.nextInt();
+        int b = scanner.nextInt();
+        int c = scanner.nextInt();
 
-        // TODO: сформируй параметризованную строку
-    }
-}
-`,
-        hints: ["Подставь email и status в одинарные кавычки в шаблон."],
-        solution: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String email = scanner.next();
-        String status = scanner.next();
-
-        System.out.println("SELECT * FROM users WHERE email = '" + email + "' AND status = '" + status + "';");
+        // TODO: вызови maxOfThree и напечатай
     }
 }
 `,
         tests: [
-          {
-            label: "Подстановка параметров",
-            stdin: "test@mail.com ACTIVE\n",
-            expected: ["SELECT * FROM users WHERE email = 'test@mail.com' AND status = 'ACTIVE';"],
-          },
+          { label: "15, 42, 28", stdin: "15\n42\n28\n", expected: ["Максимум: 42"] },
+          { label: "100, 20, 50", stdin: "100\n20\n50\n", expected: ["Максимум: 100"] },
         ],
+        requiredCode: [{ pattern: "int\\s+maxOfThree\\s*\\(", message: "Объяви int maxOfThree(int a, int b, int c)" }],
+        hints: ["`return Math.max(a, Math.max(b, c));`"],
+        solution: `import java.util.Scanner;
+
+public class Main {
+    public static int maxOfThree(int a, int b, int c) {
+        return Math.max(a, Math.max(b, c));
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int a = scanner.nextInt();
+        int b = scanner.nextInt();
+        int c = scanner.nextInt();
+        System.out.println("Максимум: " + maxOfThree(a, b, c));
+    }
+}
+`,
       },
       {
-        id: "d45_t3",
+        id: "d22_t3",
         type: "homework",
-        title: "Задача 3: Домашка (Реализация паттерна DAO в памяти)",
-        shortDesc: "Интерфейс UserDao и реализация InMemoryUserDao",
-        difficulty: "Сложный",
+        title: "Задача 3: Домашнее задание (Калькулятор индекса массы тела ИМТ)",
+        shortDesc: "Метод getBmiCategory(double weight, double height)",
+        difficulty: "Средний",
         xp: 40,
         description:
-          "Паттерн DAO изолирует бизнес-логику от способа хранения данных.\n" +
-          "Создай класс `User(Long id, String name)` и DAO с методами `save(User u)` и `findById(Long id)`.\n" +
-          "Считай число пользователей N, сохрани их через DAO и затем выполни поиск по ID M раз, выводя найденные имена или `User not found`.",
-        sampleInput: "2\n1 Timur\n2 Alina\n2\n1\n3",
-        exampleOutput: "Timur\nUser not found",
+          "Создай метод `public static String getBmiStatus(double weightKg, double heightM)`.\nИндекс массы тела рассчитывается по формуле: `bmi = weightKg / (heightM * heightM)`.\n- Если `bmi < 18.5`, возвращается строка `\"Дефицит массы\"`\n- Если `bmi >= 18.5 && bmi < 25.0`, возвращается `\"Норма\"`\n- Иначе возвращается `\"Избыточная масса\"`\nВ `main` считай вес и рост и выведи статус.",
+        requirements: [
+          "Метод должен возвращать `String`.",
+          "Выведи категорию ИМТ.",
+        ],
+        exampleInput: "70.0\n1.75",
+        exampleOutput: "Статус ИМТ: Норма",
+        sampleInput: "70.0\n1.75",
         starterCode: `import java.util.Scanner;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
 
 public class Main {
+    // TODO: объяви метод getBmiStatus(double weightKg, double heightM)
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        int n = scanner.nextInt();
-        Map<Long, String> dao = new HashMap<>();
+        double w = scanner.nextDouble();
+        double h = scanner.nextDouble();
 
-        for (int i = 0; i < n; i++) {
-            long id = scanner.nextLong();
-            String name = scanner.next();
-            dao.put(id, name);
-        }
-
-        int m = scanner.nextInt();
-        for (int i = 0; i < m; i++) {
-            long searchId = scanner.nextLong();
-            // TODO: найди пользователя в dao или выведи "User not found"
-        }
-    }
-}
-`,
-        hints: ["Проверяй наличие ключа через dao.get(searchId)."],
-        solution: `import java.util.Scanner;
-import java.util.HashMap;
-import java.util.Map;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int n = scanner.nextInt();
-        Map<Long, String> dao = new HashMap<>();
-
-        for (int i = 0; i < n; i++) {
-            long id = scanner.nextLong();
-            String name = scanner.next();
-            dao.put(id, name);
-        }
-
-        int m = scanner.nextInt();
-        for (int i = 0; i < m; i++) {
-            long searchId = scanner.nextLong();
-            String found = dao.get(searchId);
-            if (found != null) {
-                System.out.println(found);
-            } else {
-                System.out.println("User not found");
-            }
-        }
+        // TODO: вызови getBmiStatus(w, h)
     }
 }
 `,
         tests: [
-          {
-            label: "Поиск через DAO",
-            stdin: "2\n1 Timur\n2 Alina\n2\n1\n3\n",
-            expected: ["Timur", "User not found"],
-          },
+          { label: "70 кг, 1.75 м (22.86 -> Норма)", stdin: "70.0\n1.75\n", expected: ["Статус ИМТ: Норма"] },
+          { label: "50 кг, 1.80 м (15.43 -> Дефицит)", stdin: "50.0\n1.80\n", expected: ["Статус ИМТ: Дефицит массы"] },
         ],
+        hints: ["`double bmi = weightKg / (heightM * heightM);`"],
+        solution: `import java.util.Scanner;
+
+public class Main {
+    public static String getBmiStatus(double weightKg, double heightM) {
+        double bmi = weightKg / (heightM * heightM);
+        if (bmi < 18.5) {
+            return "Дефицит массы";
+        } else if (bmi < 25.0) {
+            return "Норма";
+        } else {
+            return "Избыточная масса";
+        }
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        double w = scanner.nextDouble();
+        double h = scanner.nextDouble();
+        System.out.println("Статус ИМТ: " + getBmiStatus(w, h));
+    }
+}
+`,
       },
     ],
   }),
 
   /* ------------------------------------------------------------------ */
-  /*  DAY 48: Git: основы                                               */
+  /*  DAY 23: Java Method Overloading (Перегрузка методов)              */
   /* ------------------------------------------------------------------ */
   withDefaults({
-    day: 48,
+    day: 23,
     moduleId: 4,
-    title: "Git: основы (init, add, commit, .gitignore)",
-    short: "Состояния файлов, слепки репозитория, SHA-1 хеширование коммитов",
-    difficulty: "Средний",
+    title: "Java Method Overloading: перегрузка методов и сигнатура",
+    short: "Одинаковые имена с разными параметрами, правила сигнатуры",
+    difficulty: "Лёгкий",
     duration: "~2 часа",
     xp: 100,
     ready: true,
-    topics: ["git init", "git add", "git commit", ".gitignore", "SHA-1"],
+    topics: [
+      "Что такое перегрузка методов (Method Overloading)",
+      "Сигнатура метода: имя + типы и порядок параметров",
+      "Почему тип возвращаемого значения НЕ отличает перегрузку",
+      "Перегрузка по количеству параметров",
+      "Перегрузка по типам параметров (int vs double)",
+      "Как компилятор выбирает нужный метод",
+    ],
     videos: [
-      { author: "Алишев", query: "Алишев Git с нуля основы", note: "Основы контроля версий Git" },
-      { author: "Заур Трегулов", query: "Заур Трегулов Git для начинающих", note: "Коммиты и состояния файлов" },
+      { author: "Алишев", query: "Алишев Java перегрузка методов", note: "Перегрузка методов с нуля" },
+      { author: "Заур Трегулов", query: "Заур Трегулов overloading перегрузка сигнатура Java", note: "Сигнатура и правила компилятора" },
+    ],
+    theory: [
+      { type: "h", text: "Что такое перегрузка методов? (W3Schools)" },
+      {
+        type: "p",
+        text: "При перегрузке методов несколько методов могут иметь **одно и то же имя**, но обязаны иметь **разные параметры** (разное количество или разные типы данных):",
+      },
+      {
+        type: "code",
+        caption: "Пример перегрузки методов (W3Schools)",
+        code: `public class Main {
+    // 1. Метод для сложения двух int
+    public static int plusMethod(int x, int y) {
+        return x + y;
+    }
+
+    // 2. Метод для сложения двух double
+    public static double plusMethod(double x, double y) {
+        return x + y;
+    }
+
+    public static void main(String[] args) {
+        int myNum1 = plusMethod(8, 5);
+        double myNum2 = plusMethod(4.3, 6.26);
+
+        System.out.println("int: " + myNum1);       // 13
+        System.out.println("double: " + myNum2); // 10.559999999999999
+    }
+}`,
+      },
+      { type: "h", text: "Правило сигнатуры" },
+      {
+        type: "callout",
+        variant: "warning",
+        title: "Важно запомнить",
+        text: "Два метода НЕ могут отличаться только типом возвращаемого значения! Если у методов одинаковое имя и одинаковые типы параметров, компилятор выдаст ошибку `method already defined`, даже если один возвращает `int`, а второй `double`.",
+      },
     ],
     tasks: [
       {
-        id: "d48_t1",
+        id: "d23_t1",
         type: "warmup",
-        title: "Задача 1: Разминка (.gitignore валидатор)",
-        shortDesc: "Фильтрация мусорных файлов от попадания в репозиторий",
+        title: "Задача 1: Разминка (Перегрузка метода multiply)",
+        shortDesc: "Создай два метода multiply: для целых чисел и для дробных",
         difficulty: "Лёгкий",
         xp: 25,
         description:
-          "В Git репозиторий нельзя коммитить файлы сборки и настройки IDE.\n" +
-          "Если имя файла заканчивается на `.class` или `.log` либо содержит `target/` или `.idea/`, программа должна вывести `IGNORED`.\n" +
-          "Иначе выведи `TRACKED`.",
-        sampleInput: "target/classes/Main.class",
-        exampleOutput: "IGNORED",
-        starterCode: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String path = scanner.nextLine().trim();
-
-        // TODO: проверь, должен ли файл игнорироваться
-    }
-}
-`,
-        hints: ["Используй path.endsWith(\".class\"), path.contains(\"target/\") и т.д."],
-        solution: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String path = scanner.nextLine().trim();
-
-        if (path.endsWith(".class") || path.endsWith(".log") || path.contains("target/") || path.contains(".idea/")) {
-            System.out.println("IGNORED");
-        } else {
-            System.out.println("TRACKED");
-        }
-    }
-}
-`,
-        tests: [
-          { label: "Игнорируемый class файл", stdin: "target/classes/Main.class\n", expected: ["IGNORED"] },
-          { label: "Исходный java файл", stdin: "src/main/java/Main.java\n", expected: ["TRACKED"] },
-          { label: "Лог файл", stdin: "app.log\n", expected: ["IGNORED"] },
+          "Создай два перегруженных метода:\n1) `public static int multiply(int a, int b)` -> возвращает `a * b`\n2) `public static double multiply(double a, double b)` -> возвращает `a * b`\nВ `main` продемонстрируй их работу:\n`Целое: 15`\n`Дробное: 12.5`",
+        requirements: [
+          "Используй перегрузку методов с одинаковым именем `multiply`.",
+          "Выведи 2 строки.",
         ],
-      },
-      {
-        id: "d48_t2",
-        type: "practice",
-        title: "Задача 2: Практика (Валидатор Conventional Commits)",
-        shortDesc: "Проверка стандарта оформления коммит-сообщений",
-        difficulty: "Средний",
-        xp: 35,
-        description:
-          "В профессиональных командах сообщения коммитов оформляются по стандарту Conventional Commits:\n" +
-          "`<тип>: <описание>`\n" +
-          "Разрешенные типы: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`.\n" +
-          "Если коммит соответствует стандарту, выведи `COMMIT VALID`, иначе `INVALID FORMAT`.",
-        sampleInput: "feat: add user authentication via JWT",
-        exampleOutput: "COMMIT VALID",
-        starterCode: `import java.util.Scanner;
+        exampleOutput: "Целое: 15\nДробное: 12.5",
+        starterCode: `public class Main {
+    // TODO: объяви multiply(int, int) и multiply(double, double)
 
-public class Main {
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String message = scanner.nextLine().trim();
-
-        // TODO: проверь префикс типа коммита
-    }
-}
-`,
-        hints: ["Регулярное выражение: ^(feat|fix|docs|refactor|test|chore): .+$"],
-        solution: `import java.util.Scanner;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        String message = scanner.nextLine().trim();
-
-        if (message.matches("^(feat|fix|docs|refactor|test|chore): .+$")) {
-            System.out.println("COMMIT VALID");
-        } else {
-            System.out.println("INVALID FORMAT");
-        }
-    }
-}
-`,
-        tests: [
-          { label: "Корректный feat", stdin: "feat: add user authentication via JWT\n", expected: ["COMMIT VALID"] },
-          { label: "Неверный префикс", stdin: "fixed bug in service\n", expected: ["INVALID FORMAT"] },
-          { label: "Пропущен пробел после двоеточия", stdin: "fix:bug\n", expected: ["INVALID FORMAT"] },
-        ],
-      },
-      {
-        id: "d48_t3",
-        type: "homework",
-        title: "Задача 3: Домашка (Хеш-дерево коммитов в Git)",
-        shortDesc: "Связный список коммитов со ссылкой на родителя parent_hash",
-        difficulty: "Сложный",
-        xp: 40,
-        description:
-          "Каждый коммит в Git ссылается на предыдущий (parent). Считай N коммитов вида `hash parent_hash message`.\n" +
-          "Выведи историю в обратном порядке от последнего коммита (HEAD) к первому (у первого parent_hash = 'null').",
-        sampleInput: "3\na1 null Initial commit\nb2 a1 Add database schema\nc3 b2 Implement REST controller",
-        exampleOutput: "c3 -> b2 -> a1 -> ROOT",
-        starterCode: `import java.util.Scanner;
-import java.util.HashMap;
-import java.util.Map;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int n = Integer.parseInt(scanner.nextLine().trim());
-        Map<String, String> parentMap = new HashMap<>(); // commit -> parent
-        String head = null;
-
-        for (int i = 0; i < n; i++) {
-            String hash = scanner.next();
-            String parent = scanner.next();
-            scanner.nextLine(); // skip message
-            parentMap.put(hash, parent);
-            head = hash; // последний коммит становится HEAD
-        }
-
-        // TODO: пройди по цепочке от head до "null" и выведи историю
-    }
-}
-`,
-        hints: ["В цикле переходи curr = parentMap.get(curr), пока curr не равен 'null'."],
-        solution: `import java.util.Scanner;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.ArrayList;
-import java.util.List;
-
-public class Main {
-    public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int n = Integer.parseInt(scanner.nextLine().trim());
-        Map<String, String> parentMap = new HashMap<>();
-        String head = null;
-
-        for (int i = 0; i < n; i++) {
-            String hash = scanner.next();
-            String parent = scanner.next();
-            scanner.nextLine();
-            parentMap.put(hash, parent);
-            head = hash;
-        }
-
-        List<String> chain = new ArrayList<>();
-        String curr = head;
-        while (curr != null && !curr.equals("null")) {
-            chain.add(curr);
-            curr = parentMap.get(curr);
-        }
-        chain.add("ROOT");
-
-        System.out.println(String.join(" -> ", chain));
+        System.out.println("Целое: " + multiply(3, 5));
+        System.out.println("Дробное: " + multiply(2.5, 5.0));
     }
 }
 `,
         tests: [
           {
-            label: "Цепочка коммитов",
-            stdin: "3\na1 null Initial commit\nb2 a1 Add database schema\nc3 b2 Implement REST controller\n",
-            expected: ["c3 -> b2 -> a1 -> ROOT"],
+            label: "Проверка multiply",
+            expected: [
+              "Целое: 15",
+              "Дробное: 12.5",
+            ],
           },
         ],
+        requiredCode: [
+          { pattern: "int\\s+multiply\\s*\\(\\s*int", message: "Объяви multiply(int, int)" },
+          { pattern: "double\\s+multiply\\s*\\(\\s*double", message: "Объяви multiply(double, double)" },
+        ],
+        hints: ["Оба метода имеют имя `multiply`, но разные типы параметров."],
+        solution: `public class Main {
+    public static int multiply(int a, int b) {
+        return a * b;
+    }
+
+    public static double multiply(double a, double b) {
+        return a * b;
+    }
+
+    public static void main(String[] args) {
+        System.out.println("Целое: " + multiply(3, 5));
+        System.out.println("Дробное: " + multiply(2.5, 5.0));
+    }
+}
+`,
+      },
+      {
+        id: "d23_t2",
+        type: "practice",
+        title: "Задача 2: Основная практика (Калькулятор площадей getArea)",
+        shortDesc: "Перегрузи метод getArea для квадрата и прямоугольника",
+        difficulty: "Лёгкий",
+        xp: 35,
+        description:
+          "Создай два перегруженных метода расчета площади фигур:\n1) `public static int getArea(int side)` — для квадрата (`side * side`)\n2) `public static int getArea(int width, int height)` — для прямоугольника (`width * height`)\nВ `main` считай сторону квадрата `s`, а затем ширину `w` и высоту `h` прямоугольника.\nВыведи:\n`Площадь квадрата: <areaSquare>`\n`Площадь прямоугольника: <areaRect>`",
+        requirements: [
+          "Имя обоих методов должно быть строго `getArea`.",
+          "Выведи 2 строки.",
+        ],
+        exampleInput: "5\n4\n6",
+        exampleOutput: "Площадь квадрата: 25\nПлощадь прямоугольника: 24",
+        sampleInput: "5\n4\n6",
+        starterCode: `import java.util.Scanner;
+
+public class Main {
+    // TODO: объяви getArea(int side) и getArea(int w, int h)
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int s = scanner.nextInt();
+        int w = scanner.nextInt();
+        int h = scanner.nextInt();
+
+        // TODO: вызови оба метода getArea и напечатай
+    }
+}
+`,
+        tests: [
+          {
+            label: "Квадрат 5, прямоугольник 4х6",
+            stdin: "5\n4\n6\n",
+            expected: [
+              "Площадь квадрата: 25",
+              "Площадь прямоугольника: 24",
+            ],
+          },
+        ],
+        requiredCode: [
+          { pattern: "int\\s+getArea\\s*\\(\\s*int\\s+\\w+\\s*\\)", message: "Объяви getArea(int side)" },
+          { pattern: "int\\s+getArea\\s*\\(\\s*int\\s+\\w+\\s*,\\s*int", message: "Объяви getArea(int w, int h)" },
+        ],
+        hints: ["`getArea(s)` вызовет 1-й метод, `getArea(w, h)` — 2-й."],
+        solution: `import java.util.Scanner;
+
+public class Main {
+    public static int getArea(int side) {
+        return side * side;
+    }
+
+    public static int getArea(int width, int height) {
+        return width * height;
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int s = scanner.nextInt();
+        int w = scanner.nextInt();
+        int h = scanner.nextInt();
+
+        System.out.println("Площадь квадрата: " + getArea(s));
+        System.out.println("Площадь прямоугольника: " + getArea(w, h));
+    }
+}
+`,
+      },
+      {
+        id: "d23_t3",
+        type: "homework",
+        title: "Задача 3: Домашнее задание (Перегрузка форматирования имени)",
+        shortDesc: "Метод formatFullName с 2 или 3 параметрами (фамилия, имя, отчество)",
+        difficulty: "Средний",
+        xp: 40,
+        description:
+          "Создай перегруженные методы форматирования имени пользователя:\n1) `public static String formatName(String first, String last)` -> возвращает `last + \" \" + first`\n2) `public static String formatName(String first, String middle, String last)` -> возвращает `last + \" \" + first + \" \" + middle`\nВ `main` продемонстрируй оба вызова:\n`formatName(\"Иван\", \"Иванов\")` -> `Иванов Иван`\n`formatName(\"Иван\", \"Иванович\", \"Иванов\")` -> `Иванов Иван Иванович`",
+        requirements: [
+          "Используй перегрузку метода `formatName` по числу аргументов (2 и 3).",
+          "Выведи 2 строки.",
+        ],
+        exampleOutput: "Иванов Иван\nИванов Иван Иванович",
+        starterCode: `public class Main {
+    // TODO: объяви два перегруженных метода formatName
+
+    public static void main(String[] args) {
+        System.out.println(formatName("Иван", "Иванов"));
+        System.out.println(formatName("Иван", "Иванович", "Иванов"));
+    }
+}
+`,
+        tests: [
+          {
+            label: "Проверка formatName",
+            expected: [
+              "Иванов Иван",
+              "Иванов Иван Иванович",
+            ],
+          },
+        ],
+        hints: ["`return last + \" \" + first;`"],
+        solution: `public class Main {
+    public static String formatName(String first, String last) {
+        return last + " " + first;
+    }
+
+    public static String formatName(String first, String middle, String last) {
+        return last + " " + first + " " + middle;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(formatName("Иван", "Иванов"));
+        System.out.println(formatName("Иван", "Иванович", "Иванов"));
+    }
+}
+`,
+      },
+    ],
+  }),
+
+  /* ------------------------------------------------------------------ */
+  /*  DAY 24: Java Scope (Область видимости переменных)                 */
+  /* ------------------------------------------------------------------ */
+  withDefaults({
+    day: 24,
+    moduleId: 4,
+    title: "Java Scope: видимость переменных, Method Scope и Block Scope",
+    short: "Область видимости внутри методов и фигурных скобок {}, время жизни",
+    difficulty: "Лёгкий",
+    duration: "~1.5 часа",
+    xp: 100,
+    ready: true,
+    topics: [
+      "Что такое Scope: где переменная доступна и где уничтожается",
+      "Method Scope (область видимости метода): локальные переменные",
+      "Block Scope (область видимости блока): фигурные скобки {}",
+      "Переменные циклов: почему счетчик for (int i = 0...) не виден вне цикла",
+      "Затенение переменных (Variable Shadowing)",
+      "Стек вызовов и время жизни данных в памяти",
+    ],
+    videos: [
+      { author: "Алишев", query: "Алишев Java область видимости переменных", note: "Область видимости Scope с нуля" },
+      { author: "Заур Трегулов", query: "Заур Трегулов scope область видимости переменных стек Java", note: "Method vs Block scope" },
+    ],
+    theory: [
+      { type: "h", text: "Область видимости (Java Scope)" },
+      {
+        type: "p",
+        text: "В Java переменные доступны только внутри той области (блока кода), в которой они были объявлены.",
+      },
+      {
+        type: "code",
+        caption: "Method Scope против Block Scope (W3Schools)",
+        code: `public class Main {
+    public static void main(String[] args) {
+        // 1. Method Scope: переменная x доступна во всем методе main после объявления
+        int x = 100;
+
+        { // 2. Block Scope: блок внутри фигурных скобок
+            int y = 50;
+            System.out.println(x + y); // 150 (x виден, y виден)
+        }
+
+        // System.out.println(y); // ОШИБКА КОМПИЛЯЦИИ: y уничтожен при выходе из скобок!
+    }
+}`,
+      },
+      { type: "h", text: "Счетчики циклов for" },
+      {
+        type: "callout",
+        variant: "warning",
+        title: "Частая ошибка",
+        text: "Если переменная объявлена в заголовке цикла `for (int i = 0; i < 5; i++)`, она существует **только внутри этого цикла**. После закрывающей фигурной скобки `}` переменная `i` больше не существует!",
+      },
+    ],
+    tasks: [
+      {
+        id: "d24_t1",
+        type: "warmup",
+        title: "Задача 1: Разминка (Исправление выхода за область видимости)",
+        shortDesc: "Вынеси объявление переменной из блока цикла, чтобы напечатать итог",
+        difficulty: "Лёгкий",
+        xp: 25,
+        description:
+          "В стартовом коде переменная `total` объявлена внутри цикла, из-за чего её нельзя вывести после цикла.\nИсправь код: объяви `int total = 0;` ДО цикла `for`.\nВыведи:\n`Сумма чисел от 1 до 10: 55`",
+        requirements: [
+          "Объяви `total` в области видимости метода `main`.",
+          "Выведи 1 строку.",
+        ],
+        exampleOutput: "Сумма чисел от 1 до 10: 55",
+        starterCode: `public class Main {
+    public static void main(String[] args) {
+        for (int i = 1; i <= 10; i++) {
+            int total = 0; // Ошибка: пересоздается на каждом шаге!
+            total += i;
+        }
+
+        // Ошибка: total не виден здесь!
+        System.out.println("Сумма чисел от 1 до 10: " + total);
+    }
+}
+`,
+        tests: [
+          { label: "Сумма 55", expected: ["Сумма чисел от 1 до 10: 55"] },
+        ],
+        hints: ["Объяви `int total = 0;` перед циклом `for`."],
+        solution: `public class Main {
+    public static void main(String[] args) {
+        int total = 0;
+        for (int i = 1; i <= 10; i++) {
+            total += i;
+        }
+
+        System.out.println("Сумма чисел от 1 до 10: " + total);
+    }
+}
+`,
+      },
+      {
+        id: "d24_t2",
+        type: "practice",
+        title: "Задача 2: Основная практика (Изоляция переменных в блоках)",
+        shortDesc: "Разграничение локальных переменных внутри условий if-else",
+        difficulty: "Лёгкий",
+        xp: 35,
+        description:
+          "Программа рассчитывает скидку. В `main` объявлена переменная `int price = 1000;`.\nВнутри блока `if` рассчитай промежуточную скидку и итоговую цену, а затем напечатай:\n`Базовая цена: 1000 руб.`\n`Скидка применена: 150 руб.`\n`Итог: 850 руб.`",
+        requirements: [
+          "Используй правильные области видимости переменных.",
+          "Выведи 3 строки.",
+        ],
+        exampleOutput: "Базовая цена: 1000 руб.\nСкидка применена: 150 руб.\nИтог: 850 руб.",
+        starterCode: `public class Main {
+    public static void main(String[] args) {
+        int price = 1000;
+        boolean hasCoupon = true;
+
+        // TODO: рассчитай скидку и выведи итог
+    }
+}
+`,
+        tests: [
+          {
+            label: "Проверка расчета цены",
+            expected: [
+              "Базовая цена: 1000 руб.",
+              "Скидка применена: 150 руб.",
+              "Итог: 850 руб.",
+            ],
+          },
+        ],
+        hints: ["`int discount = 150; int finalPrice = price - discount;`"],
+        solution: `public class Main {
+    public static void main(String[] args) {
+        int price = 1000;
+        boolean hasCoupon = true;
+
+        System.out.println("Базовая цена: " + price + " руб.");
+
+        int discount = 0;
+        if (hasCoupon) {
+            discount = 150;
+            System.out.println("Скидка применена: " + discount + " руб.");
+        }
+
+        int finalPrice = price - discount;
+        System.out.println("Итог: " + finalPrice + " руб.");
+    }
+}
+`,
+      },
+      {
+        id: "d24_t3",
+        type: "homework",
+        title: "Задача 3: Домашнее задание (Локальные переменные в методах)",
+        shortDesc: "Докажи, что метод не меняет переменную снаружи",
+        difficulty: "Средний",
+        xp: 40,
+        description:
+          "Создай метод `public static void tryModify(int x)`:\nвнутри метода напиши `x = x + 100;` и напечатай `Внутри метода: x = <x>`.\nВ методе `main` объяви `int x = 10;`, вызови `tryModify(x)`, а затем напечатай `В main после вызова: x = <x>`.\nЭто наглядно демонстрирует, что переменная `x` в `main` не изменилась!",
+        requirements: [
+          "Создай метод `tryModify(int x)`.",
+          "Выведи 2 строки.",
+        ],
+        exampleOutput: "Внутри метода: x = 110\nВ main после вызова: x = 10",
+        starterCode: `public class Main {
+    // TODO: объяви tryModify(int x)
+
+    public static void main(String[] args) {
+        int x = 10;
+        // TODO: вызови tryModify(x) и напечатай x в main
+    }
+}
+`,
+        tests: [
+          {
+            label: "Проверка изоляции локальных переменных",
+            expected: [
+              "Внутри метода: x = 110",
+              "В main после вызова: x = 10",
+            ],
+          },
+        ],
+        hints: ["Переменная `x` в методе `tryModify` живёт в своём собственном кадре стека."],
+        solution: `public class Main {
+    public static void tryModify(int x) {
+        x = x + 100;
+        System.out.println("Внутри метода: x = " + x);
+    }
+
+    public static void main(String[] args) {
+        int x = 10;
+        tryModify(x);
+        System.out.println("В main после вызова: x = " + x);
+    }
+}
+`,
+      },
+    ],
+  }),
+
+  /* ------------------------------------------------------------------ */
+  /*  DAY 25: Java Recursion (Рекурсия)                                 */
+  /* ------------------------------------------------------------------ */
+  withDefaults({
+    day: 25,
+    moduleId: 4,
+    title: "Java Recursion: рекурсивные методы, базовый случай и стек",
+    short: "Рекурсия, базовый случай, факториал и StackOverflowError",
+    difficulty: "Средний",
+    duration: "~2.5 часа",
+    xp: 100,
+    ready: true,
+    topics: [
+      "Что такое рекурсия: метод вызывает сам себя",
+      "Два обязательных условия рекурсии: базовый случай (выход) и шаг",
+      "Стек вызовов (Call Stack) и кадры стека",
+      "Опасность бесконечной рекурсии: ошибка StackOverflowError",
+      "Классический пример: сумма чисел от 1 до N",
+      "Факториал числа: n! = n * (n - 1)!",
+    ],
+    videos: [
+      { author: "Алишев", query: "Алишев Java рекурсия", note: "Рекурсия с нуля на понятных примерах" },
+      { author: "Заур Трегулов", query: "Заур Трегулов рекурсия факториал стек вызовов Java", note: "Стек вызовов Call Stack и рекурсия" },
+    ],
+    theory: [
+      { type: "h", text: "Что такое рекурсия? (W3Schools)" },
+      {
+        type: "p",
+        text: "Рекурсия — это техника, при которой метод вызывает сам себя для решения более простой подзадачи. Как в цикле `while`, в рекурсии **всегда должно быть условие остановки (базовый случай)**, иначе программа переполнит память и выбросит ошибку `StackOverflowError`.",
+      },
+      {
+        type: "code",
+        caption: "Рекурсивное суммирование (W3Schools)",
+        code: `public class Main {
+    public static int sum(int k) {
+        if (k > 0) {
+            return k + sum(k - 1); // рекурсивный шаг
+        } else {
+            return 0;              // базовый случай (остановка)
+        }
+    }
+
+    public static void main(String[] args) {
+        int result = sum(10);
+        System.out.println(result); // 55 (10 + 9 + ... + 1)
+    }
+}`,
+      },
+      { type: "h", text: "Как работает стек вызовов (Call Stack)" },
+      {
+        type: "list",
+        items: [
+          "`sum(3)` вызывает `3 + sum(2)`",
+          "`sum(2)` вызывает `2 + sum(1)`",
+          "`sum(1)` вызывает `1 + sum(0)`",
+          "`sum(0)` возвращает `0` (базовый случай!)",
+          "Затем результаты сворачиваются назад: `1 + 0 = 1` -> `2 + 1 = 3` -> `3 + 3 = 6`.",
+        ],
+      },
+    ],
+    tasks: [
+      {
+        id: "d25_t1",
+        type: "warmup",
+        title: "Задача 1: Разминка (Рекурсивный обратный отсчёт)",
+        shortDesc: "Рекурсивный метод countdown(n) до 1 и печать «Поехали!»",
+        difficulty: "Лёгкий",
+        xp: 25,
+        description:
+          "Создай рекурсивный метод `public static void countdown(int n)`.\n- Если `n <= 0`, метод печатает `Поехали!` и завершается (`return;`).\n- Иначе метод печатает `n`, а затем вызывает `countdown(n - 1)`.\nВ `main` считай число (например 5) и запусти обратный отсчет.",
+        requirements: [
+          "Используй рекурсивный метод.",
+          "Выведи числа и финальную фразу.",
+        ],
+        exampleInput: "3",
+        exampleOutput: "3\n2\n1\nПоехали!",
+        sampleInput: "3",
+        starterCode: `import java.util.Scanner;
+
+public class Main {
+    // TODO: объяви рекурсивный метод countdown(int n)
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        // TODO: вызови countdown(n)
+    }
+}
+`,
+        tests: [
+          {
+            label: "Отсчет от 3",
+            stdin: "3\n",
+            expected: [
+              "3",
+              "2",
+              "1",
+              "Поехали!",
+            ],
+          },
+        ],
+        requiredCode: [{ pattern: "countdown\\s*\\(\\s*n\\s*-\\s*1\\s*\\)", message: "Рекурсивно вызови countdown(n - 1)" }],
+        hints: ["`if (n <= 0) { System.out.println(\"Поехали!\"); return; }`"],
+        solution: `import java.util.Scanner;
+
+public class Main {
+    public static void countdown(int n) {
+        if (n <= 0) {
+            System.out.println("Поехали!");
+            return;
+        }
+        System.out.println(n);
+        countdown(n - 1);
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        countdown(n);
+    }
+}
+`,
+      },
+      {
+        id: "d25_t2",
+        type: "practice",
+        title: "Задача 2: Основная практика (Рекурсивный факториал n!)",
+        shortDesc: "Вычисли факториал n! = n * factorial(n - 1)",
+        difficulty: "Средний",
+        xp: 35,
+        description:
+          "Факториал числа `n!` — это произведение всех чисел от 1 до `n`. По определению: `0! = 1`, `1! = 1`.\nСоздай рекурсивный метод `public static long factorial(int n)`:\n- Базовый случай: `if (n <= 1) return 1;`\n- Рекурсивный шаг: `return n * factorial(n - 1);`\nВ `main` считай число `n` (например 5) и выведи:\n`Факториал <n>! = <результат>`",
+        requirements: [
+          "Используй рекурсию для вычисления факториала.",
+          "Возвращаемый тип должен быть `long`.",
+        ],
+        exampleInput: "5",
+        exampleOutput: "Факториал 5! = 120",
+        sampleInput: "5",
+        starterCode: `import java.util.Scanner;
+
+public class Main {
+    // TODO: объяви рекурсивный метод factorial(int n)
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+
+        // TODO: вызови factorial(n) и напечатай
+    }
+}
+`,
+        tests: [
+          { label: "5! = 120", stdin: "5\n", expected: ["Факториал 5! = 120"] },
+          { label: "6! = 720", stdin: "6\n", expected: ["Факториал 6! = 720"] },
+        ],
+        requiredCode: [{ pattern: "long\\s+factorial\\s*\\(", message: "Объяви long factorial(int n)" }],
+        hints: ["`if (n <= 1) return 1L; return n * factorial(n - 1);`"],
+        solution: `import java.util.Scanner;
+
+public class Main {
+    public static long factorial(int n) {
+        if (n <= 1) {
+            return 1L;
+        }
+        return n * factorial(n - 1);
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int n = scanner.nextInt();
+        System.out.println("Факториал " + n + "! = " + factorial(n));
+    }
+}
+`,
+      },
+      {
+        id: "d25_t3",
+        type: "homework",
+        title: "Задача 3: Домашнее задание (Алгоритм Евклида: НОД)",
+        shortDesc: "Рекурсивный поиск наибольшего общего делителя двух чисел",
+        difficulty: "Средний",
+        xp: 40,
+        description:
+          "Алгоритм Евклида для нахождения наибольшего общего делителя (НОД / GCD) двух чисел `a` и `b`:\n- Если `b == 0`, то `НОД(a, b) = a` (базовый случай)\n- Иначе `НОД(a, b) = НОД(b, a % b)` (рекурсивный шаг)\nСоздай метод `public static int gcd(int a, int b)` и выведи в `main`:\n`НОД: <результат>`",
+        requirements: [
+          "Используй рекурсивный алгоритм Евклида.",
+          "Выведи 1 строку.",
+        ],
+        exampleInput: "48 18",
+        exampleOutput: "НОД: 6",
+        sampleInput: "48\n18",
+        starterCode: `import java.util.Scanner;
+
+public class Main {
+    // TODO: объяви рекурсивный метод gcd(int a, int b)
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int a = scanner.nextInt();
+        int b = scanner.nextInt();
+
+        // TODO: вызови gcd(a, b) и напечатай
+    }
+}
+`,
+        tests: [
+          { label: "48 и 18 -> 6", stdin: "48\n18\n", expected: ["НОД: 6"] },
+          { label: "100 и 25 -> 25", stdin: "100\n25\n", expected: ["НОД: 25"] },
+        ],
+        requiredCode: [{ pattern: "int\\s+gcd\\s*\\(", message: "Объяви int gcd(int a, int b)" }],
+        hints: ["`if (b == 0) return a; return gcd(b, a % b);`"],
+        solution: `import java.util.Scanner;
+
+public class Main {
+    public static int gcd(int a, int b) {
+        if (b == 0) {
+            return a;
+        }
+        return gcd(b, a % b);
+    }
+
+    public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
+        int a = scanner.nextInt();
+        int b = scanner.nextInt();
+        System.out.println("НОД: " + gcd(a, b));
+    }
+}
+`,
       },
     ],
   }),
