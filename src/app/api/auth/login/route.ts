@@ -1,14 +1,33 @@
 import { NextResponse } from "next/server";
 import { prisma, isDbConfigured } from "@/lib/db";
 import { verifyPassword, signSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth/server";
+import { getClientIp, checkRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+
+const DUMMY_HASH = "$2a$10$7EqJtq98hPqEX7fNZaFWoO.8D/R0P6aJp6gHj5Y7uG1f6UqN4f2Wy";
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+
+    // IP rate limit: max 10 attempts per minute
+    const ipLimit = checkRateLimit(`login-ip:${ip}`, { intervalSeconds: 60, maxRequests: 10 });
+    if (!ipLimit.allowed) {
+      return rateLimitResponse(ipLimit.resetInSeconds, `Слишком много попыток входа с вашего IP. Подождите ${ipLimit.resetInSeconds} сек.`);
+    }
+
     const body = await request.json();
     const { username, password } = body;
 
     if (!username || !password) {
       return NextResponse.json({ error: "Введите логин и пароль" }, { status: 400 });
+    }
+
+    const cleanUsername = String(username).trim();
+
+    // Per-username rate limit: max 5 failed attempts per minute to mitigate credential stuffing
+    const userLimit = checkRateLimit(`login-user:${cleanUsername.toLowerCase()}`, { intervalSeconds: 60, maxRequests: 5 });
+    if (!userLimit.allowed) {
+      return rateLimitResponse(userLimit.resetInSeconds, `Слишком много попыток входа для этого аккаунта. Подождите ${userLimit.resetInSeconds} сек.`);
     }
 
     if (!isDbConfigured || !prisma) {
@@ -18,18 +37,19 @@ export async function POST(request: Request) {
       }, { status: 503 });
     }
 
-    const cleanUsername = String(username).trim();
     const user = await prisma.user.findUnique({
       where: { username: cleanUsername },
     });
 
     if (!user) {
-      return NextResponse.json({ error: "Пользователь с таким логином не найден" }, { status: 401 });
+      // Prevent timing attacks by executing a real bcrypt compare against a dummy hash
+      await verifyPassword(String(password), DUMMY_HASH);
+      return NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
     }
 
-    const isValid = await verifyPassword(password, user.passwordHash);
+    const isValid = await verifyPassword(String(password), user.passwordHash);
     if (!isValid) {
-      return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
+      return NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
     }
 
     const token = await signSessionToken({

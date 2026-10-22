@@ -40,3 +40,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local and sensitive scripts
+scripts/seed-*.mjs
+!scripts/seed-user.mjs
+scripts/*.local.*

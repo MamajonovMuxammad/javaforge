@@ -2,11 +2,18 @@ import { NextResponse } from "next/server";
 import { prisma, isDbConfigured } from "@/lib/db";
 import { hashPassword, signSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth/server";
 import { validateUsername, validatePassword } from "@/lib/auth/types";
+import { getClientIp, checkRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 const AVATARS = ["☕️", "🚀", "⚡️", "💻", "🔥", "🛡️", "👾", "🦊", "🎯", "👑"];
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const regLimit = checkRateLimit(`register-ip:${ip}`, { intervalSeconds: 600, maxRequests: 5 });
+    if (!regLimit.allowed) {
+      return rateLimitResponse(regLimit.resetInSeconds, `Слишком много регистраций с вашего IP. Подождите ${Math.ceil(regLimit.resetInSeconds / 60)} мин.`);
+    }
+
     const body = await request.json();
     const { username, password, avatar: reqAvatar } = body;
 

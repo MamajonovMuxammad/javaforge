@@ -4,6 +4,8 @@ import { getSessionFromRequest } from "@/lib/auth/server";
 import { migrate } from "@/lib/progress/storage";
 import { type ProgressState } from "@/lib/progress/types";
 import { Prisma } from "@prisma/client";
+import { validateAndSanitizeProgress } from "@/lib/security/progress-validator";
+import { checkRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 export async function GET(request: Request) {
   try {
@@ -64,12 +66,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Необходима авторизация" }, { status: 401 });
     }
 
+    // Rate limit: max 60 sync operations per minute per user
+    const syncLimit = checkRateLimit(`progress-sync:${session.userId}`, { intervalSeconds: 60, maxRequests: 60 });
+    if (!syncLimit.allowed) {
+      return rateLimitResponse(syncLimit.resetInSeconds, "Слишком частая синхронизация прогресса.");
+    }
+
     if (!isDbConfigured || !prisma) {
       return NextResponse.json({ error: "База данных не настроена", fallback: true }, { status: 503 });
     }
 
     const body = await request.json();
-    const cleanState = migrate(body);
+    const clientState = migrate(body);
+
+    // SECURITY: Validate and recalculate XP on the server.
+    // Client cannot forge arbitrary XP, days or unearned achievements!
+    const { sanitized, calculatedXp } = validateAndSanitizeProgress(clientState);
 
     // Save in transactional update
     await prisma.$transaction([
@@ -77,40 +89,44 @@ export async function POST(request: Request) {
         where: { userId: session.userId },
         create: {
           userId: session.userId,
-          completedDays: cleanState.completedDays,
-          completedTasks: cleanState.completedTasks as unknown as Prisma.InputJsonValue,
-          completedAt: cleanState.completedAt as unknown as Prisma.InputJsonValue,
-          code: cleanState.code as unknown as Prisma.InputJsonValue,
-          achievements: cleanState.achievements as unknown as Prisma.InputJsonValue,
-          runsCount: cleanState.stats.runs,
-          compileErrorsCount: cleanState.stats.compileErrors,
-          checksCount: cleanState.stats.checks,
-          scannerDays: cleanState.stats.scannerDays,
+          completedDays: sanitized.completedDays,
+          completedTasks: sanitized.completedTasks as unknown as Prisma.InputJsonValue,
+          completedAt: sanitized.completedAt as unknown as Prisma.InputJsonValue,
+          code: sanitized.code as unknown as Prisma.InputJsonValue,
+          achievements: sanitized.achievements as unknown as Prisma.InputJsonValue,
+          runsCount: sanitized.stats.runs,
+          compileErrorsCount: sanitized.stats.compileErrors,
+          checksCount: sanitized.stats.checks,
+          scannerDays: sanitized.stats.scannerDays,
         },
         update: {
-          completedDays: cleanState.completedDays,
-          completedTasks: cleanState.completedTasks as unknown as Prisma.InputJsonValue,
-          completedAt: cleanState.completedAt as unknown as Prisma.InputJsonValue,
-          code: cleanState.code as unknown as Prisma.InputJsonValue,
-          achievements: cleanState.achievements as unknown as Prisma.InputJsonValue,
-          runsCount: cleanState.stats.runs,
-          compileErrorsCount: cleanState.stats.compileErrors,
-          checksCount: cleanState.stats.checks,
-          scannerDays: cleanState.stats.scannerDays,
+          completedDays: sanitized.completedDays,
+          completedTasks: sanitized.completedTasks as unknown as Prisma.InputJsonValue,
+          completedAt: sanitized.completedAt as unknown as Prisma.InputJsonValue,
+          code: sanitized.code as unknown as Prisma.InputJsonValue,
+          achievements: sanitized.achievements as unknown as Prisma.InputJsonValue,
+          runsCount: sanitized.stats.runs,
+          compileErrorsCount: sanitized.stats.compileErrors,
+          checksCount: sanitized.stats.checks,
+          scannerDays: sanitized.stats.scannerDays,
         },
       }),
       prisma.user.update({
         where: { id: session.userId },
         data: {
-          xp: cleanState.xp,
-          streakCurrent: cleanState.streak.current,
-          streakBest: cleanState.streak.best,
-          lastActiveDate: cleanState.streak.lastActiveDate,
+          xp: calculatedXp,
+          streakCurrent: sanitized.streak.current,
+          streakBest: sanitized.streak.best,
+          lastActiveDate: sanitized.streak.lastActiveDate,
         },
       }),
     ]);
 
-    return NextResponse.json({ success: true, savedAt: new Date().toISOString() });
+    return NextResponse.json({
+      success: true,
+      xp: calculatedXp,
+      savedAt: new Date().toISOString(),
+    });
   } catch (err: unknown) {
     console.error("POST /api/progress error:", err);
     return NextResponse.json({ error: "Ошибка сохранения прогресса" }, { status: 500 });

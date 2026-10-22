@@ -1,5 +1,6 @@
 import { executeJava } from "@/lib/server/java-runner";
 import { MAX_CODE_LENGTH, MAX_STDIN_LENGTH, type RunErrorResponse, type RunRequest, type RunResult } from "@/lib/run-types";
+import { getClientIp, checkRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,15 @@ function error(message: string, status: number) {
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+  const runLimit = checkRateLimit(`run-ip:${ip}`, { intervalSeconds: 60, maxRequests: 25 });
+  if (!runLimit.allowed) {
+    return rateLimitResponse(
+      runLimit.resetInSeconds,
+      `Лимит запусков кода превышен (максимум 25 запусков в минуту). Подождите ${runLimit.resetInSeconds} сек.`
+    );
+  }
+
   let body: Partial<RunRequest>;
   try {
     body = (await request.json()) as Partial<RunRequest>;

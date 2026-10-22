@@ -2,9 +2,39 @@ import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.AUTH_SECRET || "javaforge-production-super-secret-key-32-chars-long!"
-);
+import crypto from "crypto";
+
+const INSECURE_LEAKED_FALLBACK = "javaforge-production-super-secret-key-32-chars-long!";
+let cachedSecret: Uint8Array | null = null;
+
+export function getJwtSecret(): Uint8Array {
+  if (cachedSecret) return cachedSecret;
+
+  const envSecret = process.env.AUTH_SECRET?.trim();
+
+  if (process.env.NODE_ENV === "production") {
+    if (!envSecret || envSecret === INSECURE_LEAKED_FALLBACK || envSecret.length < 32) {
+      console.error(
+        "[SECURITY CRITICAL] AUTH_SECRET is missing or insecure in production! Please set AUTH_SECRET in Vercel environment variables."
+      );
+      throw new Error(
+        "FATAL: AUTH_SECRET must be configured with a random string of at least 32 characters in production."
+      );
+    }
+    cachedSecret = new TextEncoder().encode(envSecret);
+    return cachedSecret;
+  }
+
+  // Development/Local: If unset or leaked fallback, generate a random ephemeral key for this process
+  if (!envSecret || envSecret === INSECURE_LEAKED_FALLBACK) {
+    const ephemeral = crypto.randomBytes(32).toString("hex");
+    cachedSecret = new TextEncoder().encode(ephemeral);
+    return cachedSecret;
+  }
+
+  cachedSecret = new TextEncoder().encode(envSecret);
+  return cachedSecret;
+}
 
 const SESSION_COOKIE_NAME = "jf_session";
 const TOKEN_EXPIRY = "30d";
@@ -23,16 +53,18 @@ export async function verifyPassword(plainText: string, hash: string): Promise<b
 }
 
 export async function signSessionToken(payload: { userId: string; username: string; role?: string }): Promise<string> {
+  const secret = getJwtSecret();
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(TOKEN_EXPIRY)
-    .sign(JWT_SECRET);
+    .sign(secret);
 }
 
 export async function verifySessionToken(token: string): Promise<{ userId: string; username: string; role?: string } | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const secret = getJwtSecret();
+    const { payload } = await jwtVerify(token, secret);
     if (payload.userId && payload.username) {
       return {
         userId: String(payload.userId),
