@@ -12,6 +12,21 @@ import { hydrateFromServer, resetStoreForLogout } from "@/lib/progress/store";
 
 const USERS_STORAGE_KEY = "javaforge_users_v2";
 const SESSION_STORAGE_KEY = "javaforge_session_v2";
+const TOKEN_STORAGE_KEY = "javaforge_token_v2";
+
+export function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function getAuthHeaders(): Record<string, string> {
+  const token = getStoredToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 const AVATARS = ["☕️", "🚀", "⚡️", "💻", "🔥", "🛡️", "👾", "🦊", "🎯", "👑"];
 
@@ -95,13 +110,17 @@ function loadSession(): User | null {
   }
 }
 
-function saveSession(user: User | null): void {
+function saveSession(user: User | null, token?: string | null): void {
   if (typeof window === "undefined") return;
   try {
     if (user) {
       localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(user));
+      if (token) {
+        localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      }
     } else {
       localStorage.removeItem(SESSION_STORAGE_KEY);
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
   } catch {
     // ignore
@@ -128,38 +147,25 @@ if (typeof window !== "undefined") {
     isAuthenticated: Boolean(sessionUser),
   };
 
-  // Sync session with server if available
-  fetch("/api/auth/me")
+  // Sync session with server using both Cookie and Bearer token headers
+  fetch("/api/auth/me", {
+    headers: getAuthHeaders(),
+  })
     .then((res) => {
       if (res.ok) return res.json();
       return null;
     })
     .then(async (data) => {
       if (data?.user) {
-        saveSession(data.user);
+        saveSession(data.user, data.token);
         currentAuthState = {
           user: data.user,
           isAuthenticated: true,
         };
         notify();
 
-        // Hydrate progress from server database on boot
-        try {
-          const progRes = await fetch("/api/progress");
-          if (progRes.ok) {
-            const progData = await progRes.json();
-            if (progData.progress) {
-              const serverProgress = progData.progress;
-              if (
-                (serverProgress.completedDays && serverProgress.completedDays.length > 0) ||
-                (serverProgress.completedTasks && Object.keys(serverProgress.completedTasks).length > 0)
-              ) {
-                localStorage.setItem("javaforge:progress:v1", JSON.stringify(serverProgress));
-                window.dispatchEvent(new Event("storage"));
-              }
-            }
-          }
-        } catch {}
+        // Hydrate progress directly into the store so UI updates immediately
+        await hydrateFromServer(true);
       }
     })
     .catch(() => {});
@@ -304,7 +310,7 @@ export async function registerUser(
     }
 
     const sessionUser: User = data.user;
-    saveSession(sessionUser);
+    saveSession(sessionUser, data.token);
     currentAuthState = {
       user: sessionUser,
       isAuthenticated: true,
@@ -318,7 +324,10 @@ export async function registerUser(
         if (localProg) {
           fetch("/api/progress", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...getAuthHeaders(),
+            },
             body: localProg,
           }).catch(() => {});
         }
@@ -359,7 +368,7 @@ export async function loginUser(
     }
 
     const sessionUser: User = data.user;
-    saveSession(sessionUser);
+    saveSession(sessionUser, data.token);
     currentAuthState = {
       user: sessionUser,
       isAuthenticated: true,
@@ -380,10 +389,13 @@ export async function loginUser(
  */
 export async function logoutUser(): Promise<void> {
   try {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
   } catch {}
 
-  saveSession(null);
+  saveSession(null, null);
   currentAuthState = {
     user: null,
     isAuthenticated: false,

@@ -29,6 +29,17 @@ function emit() {
 
 let isHydrating = false;
 
+function getClientAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const token = localStorage.getItem("javaforge_token_v2");
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+  } catch {}
+  return {};
+}
+
 /**
  * Hydrates progress directly from the backend database (Supabase PostgreSQL).
  * Automatically updates in-memory state and local storage cache.
@@ -39,7 +50,10 @@ export async function hydrateFromServer(force = false): Promise<ProgressState | 
   try {
     const res = await fetch("/api/progress", {
       cache: "no-store",
-      headers: { "Cache-Control": "no-cache" },
+      headers: {
+        "Cache-Control": "no-cache",
+        ...getClientAuthHeaders(),
+      },
     });
     if (res.ok) {
       const data = await res.json();
@@ -75,7 +89,10 @@ export function flushSync(): void {
     try {
       fetch("/api/progress", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getClientAuthHeaders(),
+        },
         body: JSON.stringify(state),
         keepalive: true,
       }).catch(() => {});
@@ -90,7 +107,10 @@ function syncToServer(nextState: ProgressState) {
     try {
       const res = await fetch("/api/progress", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getClientAuthHeaders(),
+        },
         body: JSON.stringify(nextState),
       });
       if (res.ok) {

@@ -92,10 +92,24 @@ export async function getSessionFromRequest(request: Request): Promise<{ userId:
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     if (token) {
-      return await verifySessionToken(token);
+      const verified = await verifySessionToken(token);
+      if (verified) return verified;
     }
   } catch {
     // cookies() may throw outside request scope
+  }
+
+  // 3. Fallback: Parse raw Cookie header directly from request
+  try {
+    const rawCookie = request.headers.get("cookie");
+    if (rawCookie) {
+      const match = rawCookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE_NAME}=([^;]*)`));
+      if (match && match[1]) {
+        return await verifySessionToken(decodeURIComponent(match[1]));
+      }
+    }
+  } catch {
+    // ignore
   }
 
   return null;

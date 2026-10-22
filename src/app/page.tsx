@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -62,10 +62,13 @@ function JavaForgeApp() {
   const [leaderboardModalOpen, setLeaderboardModalOpen] = useState(false);
 
   // Keep active task synced when day changes
+  const prevDayRef = useRef(currentDay);
   useEffect(() => {
     const currentTasks = lesson.tasks && lesson.tasks.length > 0 ? lesson.tasks : [];
-    const taskExists = currentTasks.some((t) => t.id === activeTaskId);
-    if (!taskExists) {
+    const dayChanged = prevDayRef.current !== currentDay;
+    prevDayRef.current = currentDay;
+
+    if (dayChanged || !currentTasks.some((t) => t.id === activeTaskId)) {
       const uncompleted = currentTasks.find((t) => !isTaskCompleted(progress, currentDay, t.id));
       setActiveTaskId(uncompleted?.id ?? currentTasks[0]?.id ?? "default");
     }

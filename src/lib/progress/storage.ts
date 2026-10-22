@@ -72,6 +72,7 @@ export const localStorageAdapter: ProgressStorage = {
   save(state) {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      window.dispatchEvent(new CustomEvent("javaforge:progress_updated"));
     } catch {
       /* quota exceeded / private mode — ignore, progress stays in memory */
     }
@@ -79,15 +80,23 @@ export const localStorageAdapter: ProgressStorage = {
   clear() {
     try {
       window.localStorage.removeItem(STORAGE_KEY);
+      window.dispatchEvent(new CustomEvent("javaforge:progress_updated"));
     } catch {
       /* ignore */
     }
   },
   watch(onChange) {
-    const handler = (e: StorageEvent) => {
+    const storageHandler = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY || e.key === null) onChange();
     };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
+    const inTabHandler = () => onChange();
+
+    window.addEventListener("storage", storageHandler);
+    window.addEventListener("javaforge:progress_updated", inTabHandler);
+
+    return () => {
+      window.removeEventListener("storage", storageHandler);
+      window.removeEventListener("javaforge:progress_updated", inTabHandler);
+    };
   },
 };
