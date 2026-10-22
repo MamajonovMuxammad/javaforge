@@ -1,3 +1,4 @@
+import { module0Lesson } from "./lessons-module0";
 import { module1Lessons } from "./lessons-module1";
 import { module2Lessons } from "./lessons-module2";
 import { module3Lessons } from "./lessons-module3";
@@ -12,6 +13,15 @@ export const PLATFORM_NAME = "JavaForge";
 export const XP_PER_DAY = 100;
 
 export const modules: Module[] = [
+  {
+    id: 0,
+    title: "Анатомия Java & Фундамент с нуля",
+    shortTitle: "Модуль 0 (Введение)",
+    description: "Зачем нужно каждое слово: public, class, static, void, main, String[] args, import и Scanner.",
+    fromDay: 0,
+    toDay: 0,
+    color: "#38bdf8",
+  },
   {
     id: 1,
     title: "Базовый синтаксис и переменные",
@@ -186,6 +196,7 @@ const outlineLessons: Lesson[] = outlines
   });
 
 const rawLessons: Lesson[] = [
+  module0Lesson,
   ...module1Lessons,
   ...module2Lessons,
   ...module3Lessons,
@@ -214,16 +225,16 @@ export const lessons: Lesson[] = rawLessons.map((l) => {
     hints: [`Используй примеры из раздела теории и материалов выше.`],
   };
 
-  const tasks = hasTasks ? l.tasks : [fallbackTask];
-  const mainTask = tasks[0];
+  const tasks = l.day === 0 ? [] : (hasTasks ? l.tasks : [fallbackTask]);
+  const mainTask = tasks[0] || fallbackTask;
 
   return {
     ...l,
     task: mainTask,
     tasks,
-    starterCode: l.starterCode || mainTask.starterCode,
-    sampleInput: l.sampleInput || mainTask.sampleInput,
-    tests: l.tests && l.tests.length > 0 ? l.tests : mainTask.tests,
+    starterCode: l.day === 0 ? "" : (l.starterCode || mainTask.starterCode),
+    sampleInput: l.day === 0 ? "" : (l.sampleInput || mainTask.sampleInput),
+    tests: l.day === 0 ? [] : (l.tests && l.tests.length > 0 ? l.tests : mainTask.tests),
     requiredCode: l.requiredCode || mainTask.requiredCode,
     hints: l.hints && l.hints.length > 0 ? l.hints : mainTask.hints,
     solution: l.solution || mainTask.solution,

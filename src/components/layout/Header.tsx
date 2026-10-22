@@ -60,13 +60,13 @@ export function Header({
           <button
             onClick={onToggleSidebar}
             className="flex items-center gap-2 rounded-xl border border-white/10 bg-zinc-900/80 px-2.5 py-1.5 text-xs font-semibold text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
-            title={isSidebarOpen ? "Закрыть программу курса" : "Открыть программу курса (65 дней)"}
+            title={isSidebarOpen ? "Закрыть программу курса" : `Открыть программу курса (${TOTAL_DAYS} дней)`}
             aria-label="Программа курса"
           >
             <Menu className="h-4 w-4 text-orange-400" />
             <span className="hidden sm:inline">Программа</span>
             <span className="rounded bg-orange-500/20 px-1 py-0.2 font-mono text-[10px] text-orange-300 font-bold">
-              65д
+              {TOTAL_DAYS}д
             </span>
           </button>
 

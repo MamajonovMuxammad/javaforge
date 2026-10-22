@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { modules, lessonsOfModule } from "@/data/curriculum";
+import { modules, lessonsOfModule, TOTAL_DAYS } from "@/data/curriculum";
 import { useProgress, dayStatus } from "@/lib/progress/store";
 import {
   CheckCircle2,
@@ -25,7 +25,7 @@ export function Sidebar({ currentDay, onSelectDay, isOpen = false, onClose }: Si
 
   // Find which module the currentDay belongs to and keep it open by default
   const [expandedModules, setExpandedModules] = useState<Record<number, boolean>>(() => {
-    const initial: Record<number, boolean> = { 1: true };
+    const initial: Record<number, boolean> = { 0: true, 1: true };
     const currentMod = modules.find((m) => currentDay >= m.fromDay && currentDay <= m.toDay);
     if (currentMod) initial[currentMod.id] = true;
     return initial;
@@ -62,7 +62,7 @@ export function Sidebar({ currentDay, onSelectDay, isOpen = false, onClose }: Si
           </div>
           <div className="flex items-center gap-3">
             <span className="font-mono text-xs text-zinc-500">
-              {progress.completedDays.length} / 65
+              {progress.completedDays.length} / {TOTAL_DAYS}
             </span>
             {onClose && (
               <button
@@ -113,7 +113,9 @@ export function Sidebar({ currentDay, onSelectDay, isOpen = false, onClose }: Si
                         Модуль {mod.id}
                       </span>
                       <span className="text-[10px] text-zinc-500">
-                        (Дни {mod.fromDay}–{mod.toDay})
+                        {mod.fromDay === mod.toDay
+                          ? `(День ${mod.fromDay})`
+                          : `(Дни ${mod.fromDay}–${mod.toDay})`}
                       </span>
                     </div>
                     <div className="text-xs font-medium text-zinc-100 truncate">

@@ -73,8 +73,8 @@ export function LandingPage({
 
   const completedCount = progress.completedDays.length;
   const nextDayToLearn = Math.min(
-    65,
-    progress.completedDays.length > 0 ? Math.max(...progress.completedDays) + 1 : 1
+    TOTAL_DAYS,
+    progress.completedDays.length > 0 ? Math.max(...progress.completedDays) + 1 : 0
   );
 
   const handleCourseAction = (day?: number) => {
@@ -311,7 +311,7 @@ export function LandingPage({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div>
               <div className="font-mono text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-300">
-                65
+                {TOTAL_DAYS}
               </div>
               <div className="text-xs sm:text-sm text-zinc-400 mt-1 font-medium">
                 Дней интенсивной программы

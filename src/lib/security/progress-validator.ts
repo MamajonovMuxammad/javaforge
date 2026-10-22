@@ -9,18 +9,18 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
   sanitized: ProgressState;
   calculatedXp: number;
 } {
-  // 1. Sanitize completedDays: only integers between 1 and 65
+  // 1. Sanitize completedDays: only integers between 0 and 70 (Module 0 to Module 5)
   const rawDays = Array.isArray(rawState.completedDays) ? rawState.completedDays : [];
   const completedDays = Array.from(
     new Set(
       rawDays
         .map((d) => Number(d))
-        .filter((d) => Number.isInteger(d) && d >= 1 && d <= 65)
+        .filter((d) => Number.isInteger(d) && d >= 0 && d <= 70)
     )
   ).sort((a, b) => a - b);
 
-  // 2. Base XP from completed days (100 XP per completed day)
-  let baseXp = completedDays.length * 100;
+  // 2. Base XP from completed days (50 XP for Day 0 intro, 100 XP per regular day)
+  let baseXp = completedDays.reduce((acc, d) => acc + (d === 0 ? 50 : 100), 0);
 
   // 3. Partial XP from uncompleted days that have completed tasks
   const rawTasks = rawState.completedTasks && typeof rawState.completedTasks === "object"
@@ -30,7 +30,7 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
   const completedTasks: Record<string, string[]> = {};
   for (const [dayStr, tasks] of Object.entries(rawTasks)) {
     const dayNum = Number(dayStr);
-    if (Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 65 && Array.isArray(tasks)) {
+    if (Number.isInteger(dayNum) && dayNum >= 0 && dayNum <= 70 && Array.isArray(tasks)) {
       // Clean task IDs
       const cleanTaskIds = Array.from(
         new Set(
@@ -59,7 +59,7 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
       new Set(
         (Array.isArray(rawStats.scannerDays) ? rawStats.scannerDays : [])
           .map(Number)
-          .filter((d) => Number.isInteger(d) && d >= 1 && d <= 65)
+          .filter((d) => Number.isInteger(d) && d >= 0 && d <= 70)
       )
     ),
   };
@@ -121,7 +121,7 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
   const completedAt: Record<string, string> = {};
   for (const [key, val] of Object.entries(rawCompletedAt)) {
     const dayNum = Number(key);
-    if (Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 65 && typeof val === "string") {
+    if (Number.isInteger(dayNum) && dayNum >= 0 && dayNum <= 70 && typeof val === "string") {
       completedAt[key] = val.slice(0, 32);
     }
   }

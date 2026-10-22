@@ -5,12 +5,13 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { LessonContent } from "@/components/lesson/LessonContent";
+import { ModuleZeroView } from "@/components/lesson/ModuleZeroView";
 import { CodeEditor } from "@/components/editor/CodeEditor";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { AuthModal } from "@/components/modals/AuthModal";
 import { LeaderboardModal } from "@/components/modals/LeaderboardModal";
 import { getLesson, lessons, TOTAL_DAYS } from "@/data/curriculum";
-import { useProgress, isTaskCompleted } from "@/lib/progress/store";
+import { useProgress, isTaskCompleted, completeDay } from "@/lib/progress/store";
 import { useAuth } from "@/lib/auth/store";
 import {
   BookOpen,
@@ -38,11 +39,11 @@ function JavaForgeApp() {
 
   const [currentDay, setCurrentDay] = useState<number>(() => {
     const p = searchParams.get("day");
-    if (p) {
+    if (p !== null && p !== "") {
       const parsed = parseInt(p, 10);
-      if (parsed >= 1 && parsed <= TOTAL_DAYS) return parsed;
+      if (parsed >= 0 && parsed <= TOTAL_DAYS) return parsed;
     }
-    return 1;
+    return 0;
   });
 
   const lesson = getLesson(currentDay) ?? lessons[0];
@@ -83,9 +84,9 @@ function JavaForgeApp() {
       setView("app");
     }
 
-    if (dayParam) {
+    if (dayParam !== null && dayParam !== "") {
       const parsed = parseInt(dayParam, 10);
-      if (parsed >= 1 && parsed <= TOTAL_DAYS && parsed !== currentDay) {
+      if (parsed >= 0 && parsed <= TOTAL_DAYS && parsed !== currentDay) {
         setCurrentDay(parsed);
       }
     } else if (progress.completedDays.length > 0) {
@@ -96,7 +97,7 @@ function JavaForgeApp() {
     }
   }, [searchParams, currentDay, progress.completedDays]);
 
-  const handleStartCourse = (day = 1) => {
+  const handleStartCourse = (day = 0) => {
     setCurrentDay(day);
     setView("app");
     router.push(`/?day=${day}`, { scroll: false });
@@ -125,7 +126,7 @@ function JavaForgeApp() {
   };
 
   const handlePrevDay = () => {
-    if (currentDay > 1) {
+    if (currentDay > 0) {
       handleSelectDay(currentDay - 1);
     }
   };
@@ -184,36 +185,38 @@ function JavaForgeApp() {
           onClose={() => setIsSidebarOpen(false)}
         />
 
-        {/* Mobile View Switcher (Theory vs IDE) */}
+        {/* Mobile View Switcher (Theory vs IDE) - hidden for theory-only Module 0 */}
         <div className="flex flex-1 flex-col overflow-hidden relative">
-          <div className="flex lg:hidden border-b border-white/[0.08] bg-[#0c0c0e] px-4 py-2">
-            <div className="grid grid-cols-2 w-full gap-2">
-              <button
-                type="button"
-                onClick={() => setMobileTab("theory")}
-                className={`flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition ${
-                  mobileTab === "theory"
-                    ? "bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                <BookOpen className="h-3.5 w-3.5" />
-                <span>Теория и задания</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobileTab("editor")}
-                className={`flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition ${
-                  mobileTab === "editor"
-                    ? "bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                <Code2 className="h-3.5 w-3.5" />
-                <span>Редактор кода (IDE)</span>
-              </button>
+          {currentDay > 0 && (
+            <div className="flex lg:hidden border-b border-white/[0.08] bg-[#0c0c0e] px-4 py-2">
+              <div className="grid grid-cols-2 w-full gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab("theory")}
+                  className={`flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition ${
+                    mobileTab === "theory"
+                      ? "bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  <span>Теория и задания</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab("editor")}
+                  className={`flex items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold transition ${
+                    mobileTab === "editor"
+                      ? "bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  <Code2 className="h-3.5 w-3.5" />
+                  <span>Редактор кода (IDE)</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Guest notification banner (non-blocking) */}
           {!auth.isAuthenticated && (
@@ -235,39 +238,52 @@ function JavaForgeApp() {
             </div>
           )}
 
-          {/* Desktop Full-Width Two-Column Layout / Mobile Single Column */}
-          <main className="flex flex-1 overflow-hidden relative">
-            {/* Left Column: Lesson Content (Theory, 3 Tasks, Videos) */}
-            <div
-              className={`flex-1 overflow-y-auto border-r border-white/[0.08] bg-[#09090b] transition-all duration-300 ${
-                mobileTab === "theory" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
-              }`}
-            >
-              <LessonContent
-                lesson={lesson}
-                activeTaskId={activeTaskId}
-                onSelectTask={setActiveTaskId}
-                onNextDay={handleNextDay}
-                onPrevDay={handlePrevDay}
-                hasPrev={currentDay > 1}
-                hasNext={currentDay < TOTAL_DAYS}
+          {/* Main workspace: Module 0 Full-Width Interactive Reading vs Regular Two-Column IDE */}
+          {currentDay === 0 ? (
+            <main className="flex flex-1 overflow-y-auto bg-[#09090b]">
+              <ModuleZeroView
+                isCompleted={progress.completedDays.includes(0)}
+                onComplete={() => {
+                  completeDay(0, { xpReward: 50 });
+                  handleSelectDay(1);
+                }}
+                onNext={() => handleSelectDay(1)}
               />
-            </div>
+            </main>
+          ) : (
+            <main className="flex flex-1 overflow-hidden relative">
+              {/* Left Column: Lesson Content (Theory, 3 Tasks, Videos) */}
+              <div
+                className={`flex-1 overflow-y-auto border-r border-white/[0.08] bg-[#09090b] transition-all duration-300 ${
+                  mobileTab === "theory" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
+                }`}
+              >
+                <LessonContent
+                  lesson={lesson}
+                  activeTaskId={activeTaskId}
+                  onSelectTask={setActiveTaskId}
+                  onNextDay={handleNextDay}
+                  onPrevDay={handlePrevDay}
+                  hasPrev={currentDay > 0}
+                  hasNext={currentDay < TOTAL_DAYS}
+                />
+              </div>
 
-            {/* Right Column: Interactive Code Sandbox */}
-            <div
-              className={`flex-1 overflow-hidden bg-[#09090b] transition-all duration-300 ${
-                mobileTab === "editor" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
-              }`}
-            >
-              <CodeEditor
-                lesson={lesson}
-                activeTaskId={activeTaskId}
-                onSelectTask={setActiveTaskId}
-                onSuccess={handleNextDay}
-              />
-            </div>
-          </main>
+              {/* Right Column: Interactive Code Sandbox */}
+              <div
+                className={`flex-1 overflow-hidden bg-[#09090b] transition-all duration-300 ${
+                  mobileTab === "editor" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
+                }`}
+              >
+                <CodeEditor
+                  lesson={lesson}
+                  activeTaskId={activeTaskId}
+                  onSelectTask={setActiveTaskId}
+                  onSuccess={handleNextDay}
+                />
+              </div>
+            </main>
+          )}
         </div>
       </div>
 

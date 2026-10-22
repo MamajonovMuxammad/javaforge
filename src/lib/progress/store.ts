@@ -304,15 +304,16 @@ export function recordFailedCheck(): void {
   commit({ ...s, streak: touchStreak(s), stats: { ...s.stats, checks: s.stats.checks + 1 } });
 }
 
-export function completeDay(day: number, opts: { code?: string; usedScanner?: boolean } = {}): ActionResult & { alreadyCompleted: boolean } {
+export function completeDay(day: number, opts: { code?: string; usedScanner?: boolean; xpReward?: number } = {}): ActionResult & { alreadyCompleted: boolean } {
   const s = getSnapshot();
   if (s.completedDays.includes(day)) {
     return { xpGained: 0, unlocked: [], alreadyCompleted: true };
   }
+  const reward = opts.xpReward ?? (day === 0 ? 50 : XP_PER_DAY);
   const key = String(day);
   const next: ProgressState = {
     ...s,
-    xp: s.xp + XP_PER_DAY,
+    xp: s.xp + reward,
     completedDays: [...s.completedDays, day].sort((a, b) => a - b),
     completedAt: { ...s.completedAt, [key]: new Date().toISOString() },
     code: opts.code !== undefined ? { ...s.code, [key]: opts.code } : s.code,
@@ -323,7 +324,7 @@ export function completeDay(day: number, opts: { code?: string; usedScanner?: bo
       scannerDays: opts.usedScanner && !s.stats.scannerDays.includes(day) ? [...s.stats.scannerDays, day] : s.stats.scannerDays,
     },
   };
-  const { state: finalState, result } = applyAchievements(next, XP_PER_DAY);
+  const { state: finalState, result } = applyAchievements(next, reward);
   commit(finalState);
   return { ...result, alreadyCompleted: false };
 }
@@ -427,13 +428,13 @@ export function completedTasksForDay(s: ProgressState, day: number): string[] {
 
 export function dayStatus(s: ProgressState, day: number): DayStatus {
   if (s.completedDays.includes(day)) return "completed";
-  if (day === 1 || s.completedDays.includes(day - 1)) return "current";
+  if (day === 0 || day === 1 || s.completedDays.includes(day - 1)) return "current";
   return "locked";
 }
 
 /** First day that is not completed yet (the one to continue from). */
 export function nextDay(s: ProgressState, totalDays: number): number {
-  for (let d = 1; d <= totalDays; d++) {
+  for (let d = 0; d <= totalDays; d++) {
     if (!s.completedDays.includes(d)) return d;
   }
   return totalDays;
