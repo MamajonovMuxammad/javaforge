@@ -133,7 +133,7 @@ if (typeof window !== "undefined") {
       if (res.ok) return res.json();
       return null;
     })
-    .then((data) => {
+    .then(async (data) => {
       if (data?.user) {
         saveSession(data.user);
         currentAuthState = {
@@ -141,6 +141,24 @@ if (typeof window !== "undefined") {
           isAuthenticated: true,
         };
         notify();
+
+        // Hydrate progress from server database on boot
+        try {
+          const progRes = await fetch("/api/progress");
+          if (progRes.ok) {
+            const progData = await progRes.json();
+            if (progData.progress) {
+              const serverProgress = progData.progress;
+              if (
+                (serverProgress.completedDays && serverProgress.completedDays.length > 0) ||
+                (serverProgress.completedTasks && Object.keys(serverProgress.completedTasks).length > 0)
+              ) {
+                localStorage.setItem("javaforge:progress:v1", JSON.stringify(serverProgress));
+                window.dispatchEvent(new Event("storage"));
+              }
+            }
+          }
+        } catch {}
       }
     })
     .catch(() => {});

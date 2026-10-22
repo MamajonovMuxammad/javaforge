@@ -79,52 +79,102 @@ export async function POST(request: Request) {
     const body = await request.json();
     const clientState = migrate(body);
 
-    // SECURITY: Validate and recalculate XP on the server.
-    // Client cannot forge arbitrary XP, days or unearned achievements!
-    const { sanitized, calculatedXp } = validateAndSanitizeProgress(clientState);
+    // SECURITY: Validate incoming state
+    const { sanitized } = validateAndSanitizeProgress(clientState);
 
-    // Save in transactional update
+    // Fetch existing progress from DB to merge and prevent accidental loss
+    const existing = await prisma.userProgress.findUnique({
+      where: { userId: session.userId },
+      include: { user: { select: { streakCurrent: true, streakBest: true } } },
+    });
+
+    const existingDays = existing?.completedDays || [];
+    const mergedCompletedDays = Array.from(
+      new Set([...existingDays, ...sanitized.completedDays])
+    ).sort((a, b) => a - b);
+
+    const existingTasks = (existing?.completedTasks as Record<string, string[]>) || {};
+    const mergedCompletedTasks: Record<string, string[]> = { ...existingTasks };
+    for (const [day, tasks] of Object.entries(sanitized.completedTasks || {})) {
+      const prev = existingTasks[day] || [];
+      mergedCompletedTasks[day] = Array.from(new Set([...prev, ...tasks]));
+    }
+
+    const existingCode = (existing?.code as Record<string, string>) || {};
+    const mergedCode = { ...existingCode, ...sanitized.code };
+
+    const existingAch = (existing?.achievements as Record<string, string>) || {};
+    const mergedAchievements = { ...existingAch, ...sanitized.achievements };
+
+    const existingCompletedAt = (existing?.completedAt as Record<string, string>) || {};
+    const mergedCompletedAt = { ...existingCompletedAt, ...sanitized.completedAt };
+
+    const runsCount = Math.max(existing?.runsCount || 0, sanitized.stats.runs);
+    const checksCount = Math.max(existing?.checksCount || 0, sanitized.stats.checks);
+    const compileErrorsCount = Math.max(existing?.compileErrorsCount || 0, sanitized.stats.compileErrors);
+    const scannerDays = Array.from(
+      new Set([...(existing?.scannerDays || []), ...sanitized.stats.scannerDays])
+    ).sort((a, b) => a - b);
+
+    const streakCurrent = Math.max(existing?.user?.streakCurrent || 0, sanitized.streak.current);
+    const streakBest = Math.max(existing?.user?.streakBest || 0, sanitized.streak.best, streakCurrent);
+
+    // Authoritative calculation of XP on merged state
+    const { sanitized: finalSanitized, calculatedXp: finalXp } = validateAndSanitizeProgress({
+      version: 1,
+      xp: 0,
+      completedDays: mergedCompletedDays,
+      completedTasks: mergedCompletedTasks,
+      completedAt: mergedCompletedAt,
+      code: mergedCode,
+      achievements: mergedAchievements,
+      streak: { current: streakCurrent, best: streakBest, lastActiveDate: sanitized.streak.lastActiveDate },
+      stats: { runs: runsCount, checks: checksCount, compileErrors: compileErrorsCount, scannerDays },
+    });
+
+    // Save merged state in transactional update
     await prisma.$transaction([
       prisma.userProgress.upsert({
         where: { userId: session.userId },
         create: {
           userId: session.userId,
-          completedDays: sanitized.completedDays,
-          completedTasks: sanitized.completedTasks as unknown as Prisma.InputJsonValue,
-          completedAt: sanitized.completedAt as unknown as Prisma.InputJsonValue,
-          code: sanitized.code as unknown as Prisma.InputJsonValue,
-          achievements: sanitized.achievements as unknown as Prisma.InputJsonValue,
-          runsCount: sanitized.stats.runs,
-          compileErrorsCount: sanitized.stats.compileErrors,
-          checksCount: sanitized.stats.checks,
-          scannerDays: sanitized.stats.scannerDays,
+          completedDays: finalSanitized.completedDays,
+          completedTasks: finalSanitized.completedTasks as unknown as Prisma.InputJsonValue,
+          completedAt: finalSanitized.completedAt as unknown as Prisma.InputJsonValue,
+          code: finalSanitized.code as unknown as Prisma.InputJsonValue,
+          achievements: finalSanitized.achievements as unknown as Prisma.InputJsonValue,
+          runsCount: finalSanitized.stats.runs,
+          compileErrorsCount: finalSanitized.stats.compileErrors,
+          checksCount: finalSanitized.stats.checks,
+          scannerDays: finalSanitized.stats.scannerDays,
         },
         update: {
-          completedDays: sanitized.completedDays,
-          completedTasks: sanitized.completedTasks as unknown as Prisma.InputJsonValue,
-          completedAt: sanitized.completedAt as unknown as Prisma.InputJsonValue,
-          code: sanitized.code as unknown as Prisma.InputJsonValue,
-          achievements: sanitized.achievements as unknown as Prisma.InputJsonValue,
-          runsCount: sanitized.stats.runs,
-          compileErrorsCount: sanitized.stats.compileErrors,
-          checksCount: sanitized.stats.checks,
-          scannerDays: sanitized.stats.scannerDays,
+          completedDays: finalSanitized.completedDays,
+          completedTasks: finalSanitized.completedTasks as unknown as Prisma.InputJsonValue,
+          completedAt: finalSanitized.completedAt as unknown as Prisma.InputJsonValue,
+          code: finalSanitized.code as unknown as Prisma.InputJsonValue,
+          achievements: finalSanitized.achievements as unknown as Prisma.InputJsonValue,
+          runsCount: finalSanitized.stats.runs,
+          compileErrorsCount: finalSanitized.stats.compileErrors,
+          checksCount: finalSanitized.stats.checks,
+          scannerDays: finalSanitized.stats.scannerDays,
         },
       }),
       prisma.user.update({
         where: { id: session.userId },
         data: {
-          xp: calculatedXp,
-          streakCurrent: sanitized.streak.current,
-          streakBest: sanitized.streak.best,
-          lastActiveDate: sanitized.streak.lastActiveDate,
+          xp: finalXp,
+          streakCurrent: finalSanitized.streak.current,
+          streakBest: finalSanitized.streak.best,
+          lastActiveDate: finalSanitized.streak.lastActiveDate,
         },
       }),
     ]);
 
     return NextResponse.json({
       success: true,
-      xp: calculatedXp,
+      xp: finalXp,
+      progress: finalSanitized,
       savedAt: new Date().toISOString(),
     });
   } catch (err: unknown) {

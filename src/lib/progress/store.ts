@@ -34,11 +34,25 @@ function syncToServer(nextState: ProgressState) {
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     try {
-      await fetch("/api/progress", {
+      const res = await fetch("/api/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nextState),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.progress && Array.isArray(data.progress.completedDays)) {
+          // If server has more completed days or higher XP from merged sources
+          if (
+            data.progress.completedDays.length > nextState.completedDays.length ||
+            (data.progress.xp && data.progress.xp > nextState.xp)
+          ) {
+            state = data.progress;
+            storage.save(data.progress);
+            emit();
+          }
+        }
+      }
     } catch {
       // Offline: progress is safely preserved in localStorage
     }
