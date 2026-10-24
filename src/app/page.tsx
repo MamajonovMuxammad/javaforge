@@ -92,9 +92,16 @@ function JavaForgeApp() {
   useEffect(() => {
     const dayParam = searchParams.get("day");
     const viewParam = searchParams.get("view");
+    const testParam = searchParams.get("test");
 
-    if (dayParam || viewParam === "app") {
+    if (dayParam || viewParam === "app" || testParam === "levelup") {
       setView("app");
+    }
+
+    if (testParam === "levelup") {
+      setTimeout(() => {
+        handleDayCompleted(currentDay > 0 ? currentDay : 3);
+      }, 200);
     }
 
     if (dayParam !== null && dayParam !== "") {
@@ -218,6 +225,7 @@ function JavaForgeApp() {
         }}
         onSelectDayTask={handleSelectDayTask}
         onGoHome={handleGoHome}
+        onTestLevelUp={() => handleDayCompleted(currentDay > 0 ? currentDay : 3)}
       />
 
       {/* Main Body with Slide-over Drawer + 2-Column Workspace */}

@@ -22,6 +22,7 @@ import {
   Home,
   LogOut,
   User as UserIcon,
+  Zap,
 } from "lucide-react";
 
 interface HeaderProps {
@@ -29,6 +30,7 @@ interface HeaderProps {
   isSidebarOpen?: boolean;
   onSelectDayTask?: (day: number, taskId: string) => void;
   onGoHome?: () => void;
+  onTestLevelUp?: () => void;
 }
 
 export function Header({
@@ -36,6 +38,7 @@ export function Header({
   isSidebarOpen,
   onSelectDayTask,
   onGoHome,
+  onTestLevelUp,
 }: HeaderProps) {
   const progress = useProgress();
   const auth = useAuth();
@@ -222,6 +225,19 @@ export function Header({
             >
               <UserIcon className="h-3.5 w-3.5" />
               <span>Войти</span>
+            </button>
+          )}
+
+          {/* Test Level-Up Transition Button */}
+          {onTestLevelUp && (
+            <button
+              type="button"
+              onClick={onTestLevelUp}
+              className="focus-ring flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500 hover:text-white"
+              title="Показать анимацию перехода на новый день (День 3 → День 4)"
+            >
+              <Zap className="h-3.5 w-3.5 text-cyan-400" />
+              <span className="hidden sm:inline">Тест перехода</span>
             </button>
           )}
 
