@@ -17,83 +17,29 @@ export interface LeaderboardEntry {
 
 const PEER_STUDENTS = [
   {
-    id: "peer_1",
-    username: "alex_senior",
-    avatar: "🚀",
-    xp: 2150,
-    completedTasksCount: 48,
-    completedDaysCount: 16,
-    streak: 15,
-  },
-  {
-    id: "peer_2",
-    username: "code_ninja",
-    avatar: "🥷",
-    xp: 1640,
-    completedTasksCount: 36,
-    completedDaysCount: 12,
-    streak: 9,
-  },
-  {
-    id: "peer_3",
-    username: "maria_backend",
-    avatar: "💻",
-    xp: 1320,
-    completedTasksCount: 29,
-    completedDaysCount: 9,
-    streak: 7,
-  },
-  {
-    id: "peer_4",
-    username: "temirlan_java",
+    id: "peer_nazar",
+    username: "Nazar",
     avatar: "⚡️",
-    xp: 980,
-    completedTasksCount: 22,
-    completedDaysCount: 7,
-    streak: 5,
-  },
-  {
-    id: "peer_5",
-    username: "dmitry_spring",
-    avatar: "🔥",
-    xp: 750,
-    completedTasksCount: 17,
-    completedDaysCount: 5,
-    streak: 4,
-  },
-  {
-    id: "peer_6",
-    username: "elena_it",
-    avatar: "🦊",
-    xp: 490,
-    completedTasksCount: 11,
-    completedDaysCount: 3,
-    streak: 3,
-  },
-  {
-    id: "peer_7",
-    username: "ivan_student",
-    avatar: "☕️",
-    xp: 280,
+    xp: 145,
     completedTasksCount: 6,
     completedDaysCount: 2,
-    streak: 2,
+    streak: 1,
   },
   {
-    id: "peer_8",
-    username: "ruslan_dev",
+    id: "peer_skittler",
+    username: "Skittler",
     avatar: "👾",
-    xp: 150,
-    completedTasksCount: 3,
+    xp: 20,
+    completedTasksCount: 1,
     completedDaysCount: 1,
     streak: 1,
   },
 ];
 
 function getLeague(rank: number, total: number): "Алмазная" | "Золотая" | "Серебряная" | "Бронзовая" {
-  if (rank <= 3) return "Алмазная";
-  if (rank <= 6) return "Золотая";
-  if (rank <= 12) return "Серебряная";
+  if (rank === 1) return "Алмазная";
+  if (rank === 2) return "Золотая";
+  if (rank === 3) return "Серебряная";
   return "Бронзовая";
 }
 
@@ -122,31 +68,42 @@ export function getLeaderboardEntries(
 
   const currentUserEntry: LeaderboardEntry = {
     id: currentUser?.id ?? "current_user",
-    username: currentUser ? currentUser.username : "Ты (Гость)",
-    avatar: currentUser?.avatar ?? "😎",
-    xp: progress.xp,
-    completedTasksCount: Math.max(userCompletedTasksCount, progress.completedDays.length * 3),
-    completedDaysCount: progress.completedDays.length,
-    streak: progress.streak.current,
+    username: currentUser ? currentUser.username : "wercis",
+    avatar: currentUser?.avatar ?? "🚀",
+    xp: progress.xp > 0 ? progress.xp : 245,
+    completedTasksCount: Math.max(userCompletedTasksCount, progress.completedDays.length * 3, 7),
+    completedDaysCount: Math.max(progress.completedDays.length, 2),
+    streak: Math.max(progress.streak.current, 1),
     isCurrentUser: true,
-    league: "Бронзовая",
+    league: "Алмазная",
   };
+
+  const currentUsernameLower = (currentUser?.username ?? "wercis").toLowerCase();
 
   const peersSource = (customPeers && customPeers.length > 0)
     ? customPeers
-        .filter((p) => p.username !== currentUser?.username && p.id !== currentUser?.id)
+        .filter((p) => {
+          const lower = p.username.toLowerCase();
+          return (
+            (lower === "nazar" || lower === "skittler") &&
+            lower !== currentUsernameLower &&
+            p.id !== currentUser?.id
+          );
+        })
         .map((p) => ({
           id: p.id,
           username: p.username,
           avatar: p.avatar,
           xp: p.xp,
-          completedTasksCount: p.completedDays * 3,
+          completedTasksCount: Math.max(p.completedDays * 3, p.username.toLowerCase() === "nazar" ? 6 : 1),
           completedDaysCount: p.completedDays,
           streak: p.streak,
           isCurrentUser: false,
           league: "Бронзовая" as const,
         }))
-    : PEER_STUDENTS.map((p) => ({
+    : PEER_STUDENTS.filter(
+        (p) => p.username.toLowerCase() !== currentUsernameLower
+      ).map((p) => ({
         ...p,
         isCurrentUser: false,
         league: "Бронзовая" as const,

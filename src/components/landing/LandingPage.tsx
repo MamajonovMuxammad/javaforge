@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { modules, lessonsOfModule, TOTAL_DAYS } from "@/data/curriculum";
 import {
   Sparkles,
@@ -127,14 +128,13 @@ export function LandingPage({
             <a href="#features" className="transition hover:text-zinc-100">
               Преимущества
             </a>
-            <button
-              type="button"
-              onClick={onOpenLeaderboard}
+            <Link
+              href="/leaderboard"
               className="flex items-center gap-1.5 transition hover:text-amber-300"
             >
               <Trophy className="h-3.5 w-3.5 text-amber-400" />
               <span>Лидерборд</span>
-            </button>
+            </Link>
             <a href="#faq" className="transition hover:text-zinc-100">
               FAQ
             </a>

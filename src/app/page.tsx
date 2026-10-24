@@ -10,6 +10,7 @@ import { CodeEditor } from "@/components/editor/CodeEditor";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { AuthModal } from "@/components/modals/AuthModal";
 import { LeaderboardModal } from "@/components/modals/LeaderboardModal";
+import { DayLevelUpModal } from "@/components/modals/DayLevelUpModal";
 import { getLesson, lessons, TOTAL_DAYS } from "@/data/curriculum";
 import { useProgress, isTaskCompleted, completeDay } from "@/lib/progress/store";
 import { useAuth } from "@/lib/auth/store";
@@ -61,6 +62,12 @@ function JavaForgeApp() {
   // Modals state
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [leaderboardModalOpen, setLeaderboardModalOpen] = useState(false);
+  const [dayLevelUpData, setDayLevelUpData] = useState<{
+    fromDay: number;
+    toDay: number;
+  } | null>(null);
+
+  const theoryContainerRef = useRef<HTMLDivElement>(null);
 
   // Keep active task synced when day changes
   const prevDayRef = useRef(currentDay);
@@ -74,6 +81,12 @@ function JavaForgeApp() {
       setActiveTaskId(uncompleted?.id ?? currentTasks[0]?.id ?? "default");
     }
   }, [currentDay, lesson.tasks, progress, activeTaskId]);
+
+  // Smooth scroll theory to top when currentDay changes
+  useEffect(() => {
+    theoryContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentDay]);
 
   // Sync state if URL query param changes
   useEffect(() => {
@@ -101,13 +114,23 @@ function JavaForgeApp() {
     setCurrentDay(day);
     setView("app");
     router.push(`/?day=${day}`, { scroll: false });
+    setMobileTab("theory");
+    setTimeout(() => {
+      theoryContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
   };
 
   const handleSelectDay = (day: number) => {
     setCurrentDay(day);
     setView("app");
     router.push(`/?day=${day}`, { scroll: false });
+    setMobileTab("theory");
     setIsSidebarOpen(false); // close drawer upon selecting a day
+    setTimeout(() => {
+      theoryContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
   };
 
   const handleSelectDayTask = (day: number, taskId: string) => {
@@ -117,6 +140,28 @@ function JavaForgeApp() {
     router.push(`/?day=${day}`, { scroll: false });
     setMobileTab("editor");
     setIsSidebarOpen(false);
+  };
+
+  const handleDayCompleted = (completedDay: number) => {
+    if (completedDay < TOTAL_DAYS) {
+      setDayLevelUpData({
+        fromDay: completedDay,
+        toDay: completedDay + 1,
+      });
+    }
+  };
+
+  const handleProceedToNextDay = (nextDay: number) => {
+    setDayLevelUpData(null);
+    setCurrentDay(nextDay);
+    setView("app");
+    router.push(`/?day=${nextDay}`, { scroll: false });
+    setMobileTab("theory");
+    setIsSidebarOpen(false);
+    setTimeout(() => {
+      theoryContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
   };
 
   const handleNextDay = () => {
@@ -245,15 +290,16 @@ function JavaForgeApp() {
                 isCompleted={progress.completedDays.includes(0)}
                 onComplete={() => {
                   completeDay(0, { xpReward: 50 });
-                  handleSelectDay(1);
+                  handleDayCompleted(0);
                 }}
-                onNext={() => handleSelectDay(1)}
+                onNext={() => handleDayCompleted(0)}
               />
             </main>
           ) : (
             <main className="flex flex-1 overflow-hidden relative">
               {/* Left Column: Lesson Content (Theory, 3 Tasks, Videos) */}
               <div
+                ref={theoryContainerRef}
                 className={`flex-1 overflow-y-auto border-r border-white/[0.08] bg-[#09090b] transition-all duration-300 ${
                   mobileTab === "theory" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
                 }`}
@@ -262,7 +308,14 @@ function JavaForgeApp() {
                   lesson={lesson}
                   activeTaskId={activeTaskId}
                   onSelectTask={setActiveTaskId}
-                  onNextDay={handleNextDay}
+                  onNextDay={() => {
+                    const allDone = lessonTasks.every((t) => isTaskCompleted(progress, currentDay, t.id));
+                    if (allDone && currentDay < TOTAL_DAYS) {
+                      handleDayCompleted(currentDay);
+                    } else {
+                      handleNextDay();
+                    }
+                  }}
                   onPrevDay={handlePrevDay}
                   hasPrev={currentDay > 0}
                   hasNext={currentDay < TOTAL_DAYS}
@@ -279,7 +332,7 @@ function JavaForgeApp() {
                   lesson={lesson}
                   activeTaskId={activeTaskId}
                   onSelectTask={setActiveTaskId}
-                  onSuccess={handleNextDay}
+                  onSuccess={() => handleDayCompleted(currentDay)}
                 />
               </div>
             </main>
@@ -297,6 +350,15 @@ function JavaForgeApp() {
           setAuthModalOpen(true);
         }}
       />
+      {dayLevelUpData && (
+        <DayLevelUpModal
+          open={Boolean(dayLevelUpData)}
+          fromDay={dayLevelUpData.fromDay}
+          toDay={dayLevelUpData.toDay}
+          onProceed={handleProceedToNextDay}
+          onClose={() => setDayLevelUpData(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useProgress } from "@/lib/progress/store";
 import {
   getLeaderboardEntries,
@@ -130,12 +131,22 @@ export function LeaderboardModal({ open, onClose, onOpenAuth }: LeaderboardModal
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-white/5 hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/leaderboard"
+              onClick={onClose}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 px-2.5 py-1 text-xs font-semibold text-orange-300 transition hover:bg-orange-500 hover:text-white"
+            >
+              <span>Вся статистика</span>
+              <span>→</span>
+            </Link>
+            <button
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-white/5 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Sorting Tabs Bar */}

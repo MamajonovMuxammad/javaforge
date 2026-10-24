@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useProgress, displayStreak, isActiveToday } from "@/lib/progress/store";
 import { useAuth, logoutUser } from "@/lib/auth/store";
 import { TOTAL_DAYS } from "@/data/curriculum";
@@ -153,15 +154,14 @@ export function Header({
           </div>
 
           {/* Leaderboard Button 🏆 */}
-          <button
-            type="button"
-            onClick={() => setLeaderboardOpen(true)}
+          <Link
+            href="/leaderboard"
             className="focus-ring flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-300 transition hover:bg-amber-500/20 hover:text-white"
-            title="Открыть таблицу лидеров курса"
+            title="Открыть таблицу лидеров курса и персональную аналитику"
           >
             <Trophy className="h-3.5 w-3.5 text-amber-400" />
             <span className="hidden md:inline">Лидерборд</span>
-          </button>
+          </Link>
 
           {/* Homework Hub Button */}
           <button

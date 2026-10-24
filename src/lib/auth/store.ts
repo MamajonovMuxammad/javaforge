@@ -30,38 +30,22 @@ export function getAuthHeaders(): Record<string, string> {
 
 const AVATARS = ["☕️", "🚀", "⚡️", "💻", "🔥", "🛡️", "👾", "🦊", "🎯", "👑"];
 
-// Seed users for an active community / leaderboard feel
+// Seed users for community / leaderboard
 const SEED_USERS: StoredUserAccount[] = [
   {
-    id: "usr_seed_1",
-    username: "alex_senior",
-    avatar: "🚀",
-    role: "student",
-    createdAt: "2026-09-15T10:00:00.000Z",
-    passwordHash: "hash_demo_123",
-  },
-  {
-    id: "usr_seed_2",
-    username: "code_ninja",
-    avatar: "🥷",
-    role: "student",
-    createdAt: "2026-09-20T12:00:00.000Z",
-    passwordHash: "hash_demo_123",
-  },
-  {
-    id: "usr_seed_3",
-    username: "maria_backend",
-    avatar: "💻",
-    role: "student",
-    createdAt: "2026-10-01T08:30:00.000Z",
-    passwordHash: "hash_demo_123",
-  },
-  {
-    id: "usr_seed_4",
-    username: "temirlan_java",
+    id: "cmvkkl34d0000jv086y8tjidg",
+    username: "Nazar",
     avatar: "⚡️",
     role: "student",
-    createdAt: "2026-10-05T14:20:00.000Z",
+    createdAt: "2026-10-23T07:29:43.000Z",
+    passwordHash: "hash_demo_123",
+  },
+  {
+    id: "cmvjf8aco0000jq0743nk68wk",
+    username: "Skittler",
+    avatar: "👾",
+    role: "student",
+    createdAt: "2026-10-22T10:51:40.776Z",
     passwordHash: "hash_demo_123",
   },
 ];

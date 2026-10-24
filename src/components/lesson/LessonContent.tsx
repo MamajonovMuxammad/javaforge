@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Lesson, LessonTask, TheoryBlock, InterviewQA, Resource, ResourceKind } from "@/data/types";
 import { youtubeSearchUrl } from "@/data/curriculum";
 import { useProgress, isTaskCompleted, completedTasksForDay } from "@/lib/progress/store";
@@ -447,6 +447,12 @@ export function LessonContent({
   const [showSolution, setShowSolution] = useState(false);
   const [showHints, setShowHints] = useState(false);
   const progress = useProgress();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Automatically scroll lesson theory to the very top when changing days
+  useEffect(() => {
+    rootRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [lesson.day]);
 
   const tasks = lesson.tasks && lesson.tasks.length > 0 ? lesson.tasks : [];
   const activeTask: LessonTask | undefined =
@@ -464,7 +470,7 @@ export function LessonContent({
   const completedInDay = completedTasksForDay(progress, lesson.day);
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-4 sm:p-6 lg:p-7">
+    <div ref={rootRef} className="flex h-full flex-col overflow-y-auto p-4 sm:p-6 lg:p-7">
       {/* Lesson Header */}
       <div className="border-b border-white/[0.08] pb-5">
         <div className="flex flex-wrap items-center gap-2 mb-2.5">
