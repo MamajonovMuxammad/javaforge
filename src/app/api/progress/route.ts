@@ -7,6 +7,9 @@ import { Prisma } from "@prisma/client";
 import { validateAndSanitizeProgress } from "@/lib/security/progress-validator";
 import { checkRateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(request: Request) {
   try {
     const session = await getSessionFromRequest(request);
@@ -31,7 +34,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ progress: null });
     }
 
-    const state: ProgressState = {
+    const rawState: ProgressState = {
       version: 1,
       xp: record.user?.xp ?? 0,
       completedDays: record.completedDays,
@@ -51,6 +54,8 @@ export async function GET(request: Request) {
         scannerDays: record.scannerDays,
       },
     };
+
+    const { sanitized: state } = validateAndSanitizeProgress(rawState);
 
     return NextResponse.json(
       { progress: state, source: "database" },

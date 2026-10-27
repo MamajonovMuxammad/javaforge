@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { useProgress } from "@/lib/progress/store";
+import { useProgress, syncNow } from "@/lib/progress/store";
 import { useAuth } from "@/lib/auth/store";
+import { validateAndSanitizeProgress } from "@/lib/security/progress-validator";
+import { countRealCompletedTasks } from "@/lib/leaderboard/store";
 import {
   Trophy,
   ArrowLeft,
@@ -39,92 +41,127 @@ interface LeaderboardUser {
   createdAt: string;
 }
 
+function formatDaysLabel(days: number): string {
+  const mod10 = days % 10;
+  const mod100 = days % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${days} день`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${days} дня`;
+  return `${days} дней`;
+}
+
 export default function LeaderboardPage() {
   const progress = useProgress();
   const auth = useAuth();
 
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [sortBy, setSortBy] = useState<"xp" | "loc" | "tasks" | "streak">("xp");
 
-  // Fetch live leaderboard data from API
-  useEffect(() => {
-    let isMounted = true;
-    async function loadData() {
-      try {
-        const res = await fetch("/api/leaderboard");
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && Array.isArray(data.leaderboard)) {
-            setUsers(data.leaderboard);
-          }
+  const activeUsername = (auth.user?.username ?? "wercis").toLowerCase();
+
+  const fetchLeaderboard = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setIsRefreshing(true);
+    try {
+      await syncNow();
+      const res = await fetch(`/api/leaderboard?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.leaderboard)) {
+          setUsers(data.leaderboard);
         }
-      } catch (err) {
-        console.error("Failed to fetch leaderboard:", err);
-      } finally {
-        if (isMounted) setIsLoading(false);
       }
+    } catch (err) {
+      console.error("Failed to fetch leaderboard:", err);
+    } finally {
+      setIsLoading(false);
+      if (showSpinner) setIsRefreshing(false);
     }
-    loadData();
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
-  // Compute live stats for current user
+  // Fetch live leaderboard data on mount, window focus, and every 15s
+  useEffect(() => {
+    fetchLeaderboard(false);
+    const interval = setInterval(() => fetchLeaderboard(false), 15000);
+    const onFocus = () => fetchLeaderboard(false);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [fetchLeaderboard]);
+
+  const { sanitized: sanitizedLocal, calculatedXp: localCalculatedXp } = useMemo(
+    () => validateAndSanitizeProgress(progress),
+    [progress]
+  );
+
+  // Compute live stats for current user (ignoring legacy duplicate bare day keys)
   const userLocFromProgress = useMemo(() => {
+    const entries = Object.entries(sanitizedLocal.code || {});
+    const taskKeysForDay = new Set<string>();
+    for (const [k] of entries) {
+      const m = k.match(/^(\d+)_/);
+      if (m) taskKeysForDay.add(m[1]);
+    }
+    const maxUnlockedDay = Math.max(1, ...sanitizedLocal.completedDays.filter((d) => d >= 1)) + 1;
     let loc = 0;
-    for (const code of Object.values(progress.code || {})) {
-      if (typeof code === "string") {
-        loc += code.split("\n").filter((l) => l.trim().length > 0).length;
+    for (const [key, code] of entries) {
+      if (typeof code !== "string") continue;
+      if (/^\d+$/.test(key) && taskKeysForDay.has(key)) continue;
+      const dayMatch = key.match(/^(\d+)/);
+      if (dayMatch) {
+        const dayNum = Number(dayMatch[1]);
+        if (dayNum > maxUnlockedDay && !sanitizedLocal.completedTasks[String(dayNum)]) continue;
       }
+      loc += code.split("\n").filter((l) => l.trim().length > 0).length;
     }
     return loc;
-  }, [progress.code]);
+  }, [sanitizedLocal]);
 
-  const userTasksCount = useMemo(() => {
-    let count = 0;
-    for (const taskList of Object.values(progress.completedTasks || {})) {
-      if (Array.isArray(taskList)) {
-        count += taskList.length;
-      }
-    }
-    return Math.max(count, progress.completedDays.length * 3, 7);
-  }, [progress.completedTasks, progress.completedDays]);
+  const userTasksCount = useMemo(
+    () => countRealCompletedTasks(sanitizedLocal),
+    [sanitizedLocal]
+  );
+
+  const localEffectiveXp = Math.max(progress.xp, localCalculatedXp);
 
   // Merge live user data with fetched list
   const displayUsers = useMemo(() => {
     const list = [...users];
 
-    // Ensure wercis, Nazar, Skittler exist even before API finishes
+    // Fallback list before API responds
     const defaultList: LeaderboardUser[] = [
       {
         rank: 1,
-        id: "cmvi7jwgy0000egwoq8v5rv10",
-        username: "wercis",
-        avatar: "🚀",
-        role: "student",
-        xp: Math.max(progress.xp, 245),
-        streak: Math.max(progress.streak.current, 1),
-        completedDays: Math.max(progress.completedDays.length, 2),
-        completedTasksCount: userTasksCount,
-        linesOfCode: Math.max(userLocFromProgress, 103),
-        runsCount: Math.max(progress.stats?.runs ?? 0, 10),
-        createdAt: "2026-10-21T14:28:59.554Z",
-      },
-      {
-        rank: 2,
         id: "cmvkkl34d0000jv086y8tjidg",
         username: "Nazar",
         avatar: "⚡️",
         role: "student",
-        xp: 145,
-        streak: 1,
-        completedDays: 1,
-        completedTasksCount: 3,
-        linesOfCode: 38,
-        runsCount: 3,
+        xp: 605,
+        streak: 3,
+        completedDays: 5,
+        completedTasksCount: 14,
+        linesOfCode: 175,
+        runsCount: 14,
         createdAt: "2026-10-23T07:29:43.000Z",
+      },
+      {
+        rank: 2,
+        id: "cmvi7jwgy0000egwoq8v5rv10",
+        username: "wercis",
+        avatar: "🚀",
+        role: "student",
+        xp: 385,
+        streak: 2,
+        completedDays: 4,
+        completedTasksCount: 9,
+        linesOfCode: 112,
+        runsCount: 12,
+        createdAt: "2026-10-21T14:28:59.554Z",
       },
       {
         rank: 3,
@@ -132,33 +169,33 @@ export default function LeaderboardPage() {
         username: "Skittler",
         avatar: "👾",
         role: "student",
-        xp: 20,
-        streak: 1,
-        completedDays: 0,
-        completedTasksCount: 1,
-        linesOfCode: 6,
-        runsCount: 1,
+        xp: 300,
+        streak: 2,
+        completedDays: 3,
+        completedTasksCount: 6,
+        linesOfCode: 96,
+        runsCount: 8,
         createdAt: "2026-10-22T10:51:40.776Z",
       },
     ];
 
     const source = list.length > 0 ? list : defaultList;
 
-    // Filter to only the 3 permitted friends
+    // Filter to the permitted friends
     const allowed = ["wercis", "nazar", "skittler"];
     const filtered = source.filter((u) => allowed.includes(u.username.toLowerCase()));
 
-    // Make sure wercis reflects active state
+    // Merge local browser state ONLY into the currently logged-in user
     const mapped = filtered.map((u) => {
-      if (u.username.toLowerCase() === "wercis") {
+      if (u.username.toLowerCase() === activeUsername) {
         return {
           ...u,
-          xp: Math.max(u.xp, progress.xp, 245),
-          streak: Math.max(u.streak, progress.streak.current, 1),
-          completedDays: Math.max(u.completedDays, progress.completedDays.length, 2),
+          xp: Math.max(u.xp, localEffectiveXp),
+          streak: Math.max(u.streak, sanitizedLocal.streak.current, 1),
+          completedDays: Math.max(u.completedDays, sanitizedLocal.completedDays.length),
           completedTasksCount: Math.max(u.completedTasksCount, userTasksCount),
-          linesOfCode: Math.max(u.linesOfCode, userLocFromProgress, 103),
-          runsCount: Math.max(u.runsCount, progress.stats?.runs ?? 0, 10),
+          linesOfCode: Math.max(u.linesOfCode, userLocFromProgress),
+          runsCount: Math.max(u.runsCount, sanitizedLocal.stats?.runs ?? 0),
         };
       }
       return u;
@@ -173,31 +210,49 @@ export default function LeaderboardPage() {
     });
 
     return mapped.map((u, i) => ({ ...u, rank: i + 1 }));
-  }, [users, progress.xp, progress.streak.current, progress.completedDays.length, progress.stats?.runs, userTasksCount, userLocFromProgress, sortBy]);
+  }, [
+    users,
+    activeUsername,
+    localEffectiveXp,
+    sanitizedLocal.streak.current,
+    sanitizedLocal.completedDays.length,
+    sanitizedLocal.stats?.runs,
+    userTasksCount,
+    userLocFromProgress,
+    sortBy,
+  ]);
 
   const top1 = displayUsers[0];
   const top2 = displayUsers[1];
   const top3 = displayUsers[2];
 
+  const activeUserEntry = useMemo(
+    () =>
+      displayUsers.find((u) => u.username.toLowerCase() === activeUsername) ??
+      displayUsers[0],
+    [displayUsers, activeUsername]
+  );
+
   // Specific personal stats for current user
   const currentUserStats = useMemo(() => {
-    const loc = Math.max(userLocFromProgress, 103);
-    const tasks = userTasksCount;
-    const runs = Math.max(progress.stats?.runs ?? 0, 10);
-    const checks = Math.max(progress.stats?.checks ?? 0, 12);
-    const errors = progress.stats?.compileErrors ?? 0;
+    const loc = activeUserEntry?.linesOfCode ?? userLocFromProgress;
+    const tasks = activeUserEntry?.completedTasksCount ?? userTasksCount;
+    const runs = activeUserEntry?.runsCount ?? (sanitizedLocal.stats?.runs || 1);
+    const checks = Math.max(sanitizedLocal.stats?.checks ?? 0, tasks);
+    const errors = sanitizedLocal.stats?.compileErrors ?? 0;
     const accuracy = checks > 0 ? Math.round(((checks - errors) / checks) * 100) : 100;
 
     return {
       loc,
       tasks,
-      days: Math.max(progress.completedDays.length, 2),
-      streak: Math.max(progress.streak.current, 1),
-      speedMinutes: 3.8, // average solving pace
-      accuracy: Math.min(100, Math.max(88, accuracy)),
+      days: activeUserEntry?.completedDays ?? sanitizedLocal.completedDays.length,
+      streak: activeUserEntry?.streak ?? Math.max(sanitizedLocal.streak.current, 1),
+      xp: activeUserEntry?.xp ?? localEffectiveXp,
+      speedMinutes: 3.8,
+      accuracy: Math.min(100, Math.max(85, accuracy)),
       runs,
     };
-  }, [userLocFromProgress, userTasksCount, progress]);
+  }, [activeUserEntry, userLocFromProgress, userTasksCount, sanitizedLocal, localEffectiveXp]);
 
   return (
     <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col selection:bg-orange-500/30">
@@ -220,23 +275,34 @@ export default function LeaderboardPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => fetchLeaderboard(true)}
+            disabled={isRefreshing || isLoading}
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900/80 px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:border-orange-500/40 hover:text-white disabled:opacity-50"
+            title="Синхронизировать и обновить рейтинг"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-orange-400 ${isRefreshing ? "animate-spin" : ""}`} />
+            <span className="hidden md:inline">Обновить</span>
+          </button>
+
           <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-300">
             <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
-            <span className="font-mono">{Math.max(progress.xp, 245)}</span>
+            <span className="font-mono">{currentUserStats.xp}</span>
             <span className="text-[10px] text-amber-400/80 font-normal">XP</span>
           </div>
 
           <div className="flex items-center gap-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 px-2.5 py-1 text-xs font-semibold text-orange-300">
             <Flame className="h-4 w-4 text-orange-400 animate-flicker" />
-            <span className="font-mono">{Math.max(progress.streak.current, 1)}</span>
+            <span className="font-mono">{currentUserStats.streak}</span>
             <span className="text-[10px] text-orange-400/80 font-normal">дн. стрик</span>
           </div>
 
           <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-1 text-xs">
-            <span>{auth.user?.avatar ?? "🚀"}</span>
+            <span>{auth.user?.avatar ?? activeUserEntry?.avatar ?? "🚀"}</span>
             <span className="font-mono font-semibold text-zinc-200">
-              {auth.user?.username ?? "wercis"}
+              {auth.user?.username ?? activeUserEntry?.username ?? "wercis"}
             </span>
           </div>
         </div>
@@ -261,7 +327,7 @@ export default function LeaderboardPage() {
 
         {/* Podium for Top 3 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 pt-6 items-end max-w-4xl mx-auto">
-          {/* #2 Place - Nazar */}
+          {/* #2 Place */}
           {top2 && (
             <div className="order-2 md:order-1 rounded-2xl border border-zinc-500/20 bg-gradient-to-t from-zinc-900/80 via-zinc-900/40 to-zinc-950 p-6 flex flex-col items-center text-center relative shadow-lg shadow-zinc-950/50 hover:border-zinc-400/40 transition">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-zinc-700 text-zinc-100 px-3 py-0.5 text-xs font-bold ring-2 ring-zinc-500/30 flex items-center gap-1 shadow-md">
@@ -282,7 +348,11 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="flex justify-between items-center text-zinc-300">
                   <span className="text-zinc-500">Решено задач:</span>
-                  <span className="font-mono text-zinc-200">{top2.completedTasksCount}</span>
+                  <span className="font-mono text-zinc-200">{top2.completedTasksCount} задач</span>
+                </div>
+                <div className="flex justify-between items-center text-zinc-300">
+                  <span className="text-zinc-500">Пройдено дней:</span>
+                  <span className="font-mono text-zinc-200">{formatDaysLabel(top2.completedDays)}</span>
                 </div>
                 <div className="flex justify-between items-center text-zinc-300">
                   <span className="text-zinc-500">Стрик:</span>
@@ -292,7 +362,7 @@ export default function LeaderboardPage() {
             </div>
           )}
 
-          {/* #1 Place - wercis (Champion) */}
+          {/* #1 Place (Champion) */}
           {top1 && (
             <div className="order-1 md:order-2 rounded-2xl border-2 border-amber-500/50 bg-gradient-to-t from-amber-950/30 via-zinc-900/90 to-zinc-950 p-7 flex flex-col items-center text-center relative shadow-2xl shadow-amber-500/10 md:-translate-y-3 ring-1 ring-amber-500/30">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-zinc-950 px-4 py-1 text-xs font-black ring-4 ring-amber-500/30 flex items-center gap-1.5 shadow-xl animate-bounce">
@@ -329,7 +399,7 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="flex justify-between items-center text-zinc-200">
                   <span className="text-zinc-400">Пройдено дней:</span>
-                  <span className="font-mono text-zinc-200">{top1.completedDays} дня</span>
+                  <span className="font-mono text-zinc-200">{formatDaysLabel(top1.completedDays)}</span>
                 </div>
                 <div className="flex justify-between items-center text-zinc-200">
                   <span className="text-zinc-400">Текущий стрик:</span>
@@ -339,7 +409,7 @@ export default function LeaderboardPage() {
             </div>
           )}
 
-          {/* #3 Place - Skittler */}
+          {/* #3 Place */}
           {top3 && (
             <div className="order-3 md:order-3 rounded-2xl border border-amber-700/20 bg-gradient-to-t from-zinc-900/80 via-zinc-900/40 to-zinc-950 p-6 flex flex-col items-center text-center relative shadow-lg shadow-zinc-950/50 hover:border-amber-700/40 transition">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-amber-800 text-amber-100 px-3 py-0.5 text-xs font-bold ring-2 ring-amber-700/30 flex items-center gap-1 shadow-md">
@@ -360,7 +430,11 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="flex justify-between items-center text-zinc-300">
                   <span className="text-zinc-500">Решено задач:</span>
-                  <span className="font-mono text-zinc-200">{top3.completedTasksCount}</span>
+                  <span className="font-mono text-zinc-200">{top3.completedTasksCount} задач</span>
+                </div>
+                <div className="flex justify-between items-center text-zinc-300">
+                  <span className="text-zinc-500">Пройдено дней:</span>
+                  <span className="font-mono text-zinc-200">{formatDaysLabel(top3.completedDays)}</span>
                 </div>
                 <div className="flex justify-between items-center text-zinc-300">
                   <span className="text-zinc-500">Стрик:</span>
@@ -615,15 +689,16 @@ export default function LeaderboardPage() {
                   <th className="py-3.5 px-4 text-center w-16">Ранг</th>
                   <th className="py-3.5 px-4">Разработчик</th>
                   <th className="py-3.5 px-4 text-center">Лига</th>
-                  <th className="py-3.5 px-4 text-right">Строк кода</th>
+                  <th className="py-3.5 px-4 text-right">Дней</th>
                   <th className="py-3.5 px-4 text-right">Задач</th>
+                  <th className="py-3.5 px-4 text-right">Строк кода</th>
                   <th className="py-3.5 px-4 text-right">Стрик</th>
                   <th className="py-3.5 px-4 text-right">Всего XP</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.06] bg-zinc-950/40">
                 {displayUsers.map((user) => {
-                  const isUser = user.username.toLowerCase() === "wercis";
+                  const isUser = user.username.toLowerCase() === activeUsername;
                   return (
                     <tr
                       key={user.id}
@@ -658,7 +733,7 @@ export default function LeaderboardPage() {
                               )}
                             </div>
                             <div className="text-[11px] text-zinc-500">
-                              Junior Java Developer • {user.completedDays} дн. закрыто
+                              Junior Java Developer • {formatDaysLabel(user.completedDays)} закрыто
                             </div>
                           </div>
                         </div>
@@ -678,12 +753,16 @@ export default function LeaderboardPage() {
                         </span>
                       </td>
 
-                      <td className="py-4 px-4 text-right font-mono font-semibold text-emerald-400">
-                        {user.linesOfCode}
+                      <td className="py-4 px-4 text-right font-mono font-semibold text-zinc-200">
+                        {formatDaysLabel(user.completedDays)}
                       </td>
 
                       <td className="py-4 px-4 text-right font-mono font-semibold text-zinc-200">
                         {user.completedTasksCount}
+                      </td>
+
+                      <td className="py-4 px-4 text-right font-mono font-semibold text-emerald-400">
+                        {user.linesOfCode}
                       </td>
 
                       <td className="py-4 px-4 text-right font-mono font-semibold text-orange-400">

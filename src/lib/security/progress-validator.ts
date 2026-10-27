@@ -11,27 +11,22 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
 } {
   // 1. Sanitize completedDays: only integers between 0 and 120 (Module 0 to Module 8)
   const rawDays = Array.isArray(rawState.completedDays) ? rawState.completedDays : [];
-  const completedDays = Array.from(
-    new Set(
-      rawDays
-        .map((d) => Number(d))
-        .filter((d) => Number.isInteger(d) && d >= 0 && d <= 120)
-    )
-  ).sort((a, b) => a - b);
+  const completedDaysSet = new Set(
+    rawDays
+      .map((d) => Number(d))
+      .filter((d) => Number.isInteger(d) && d >= 0 && d <= 120)
+  );
 
-  // 2. Base XP from completed days (50 XP for Day 0 intro, 100 XP per regular day)
-  let baseXp = completedDays.reduce((acc, d) => acc + (d === 0 ? 50 : 100), 0);
+  // 2. Sanitize completedTasks and auto-complete any day that has all 3 tasks solved
+  const rawTasks =
+    rawState.completedTasks && typeof rawState.completedTasks === "object"
+      ? rawState.completedTasks
+      : {};
 
-  // 3. Partial XP from uncompleted days that have completed tasks
-  const rawTasks = rawState.completedTasks && typeof rawState.completedTasks === "object"
-    ? rawState.completedTasks
-    : {};
-
-  const completedTasks: Record<string, string[]> = {};
+  const tempTasks: Record<number, string[]> = {};
   for (const [dayStr, tasks] of Object.entries(rawTasks)) {
     const dayNum = Number(dayStr);
-    if (Number.isInteger(dayNum) && dayNum >= 0 && dayNum <= 120 && Array.isArray(tasks)) {
-      // Clean task IDs
+    if (Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 120 && Array.isArray(tasks)) {
       const cleanTaskIds = Array.from(
         new Set(
           tasks
@@ -39,13 +34,51 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
             .filter((t) => t.length > 0 && t.length <= 64)
         )
       );
-      completedTasks[dayStr] = cleanTaskIds;
-
-      // If this day is NOT fully completed, add partial task XP (up to 35 XP per task, max 100 per day)
-      if (!completedDays.includes(dayNum)) {
-        const partialXp = Math.min(cleanTaskIds.length * 35, 100);
-        baseXp += partialXp;
+      if (cleanTaskIds.length > 0) {
+        tempTasks[dayNum] = cleanTaskIds;
+        if (cleanTaskIds.length >= 3) {
+          completedDaysSet.add(dayNum);
+        }
       }
+    }
+  }
+
+  // Ensure sequential consistency:
+  // - If a coding day d >= 1 is in completedDaysSet, ensure all 3 tasks d_t1..d_t3 are recorded.
+  // - If day d >= 2 is NOT in completedDaysSet and day (d - 1) is NOT in completedDaysSet, strip ghost tasks from locked future day d.
+  const completedTasks: Record<string, string[]> = {};
+  const sortedTaskDays = Array.from(
+    new Set([...Object.keys(tempTasks).map(Number), ...Array.from(completedDaysSet).filter((d) => d >= 1)])
+  ).sort((a, b) => a - b);
+
+  for (const dayNum of sortedTaskDays) {
+    if (completedDaysSet.has(dayNum)) {
+      const existing = tempTasks[dayNum] || [];
+      const fullTasks = Array.from(
+        new Set([...existing, `d${dayNum}_t1`, `d${dayNum}_t2`, `d${dayNum}_t3`])
+      );
+      completedTasks[String(dayNum)] = fullTasks;
+    } else if (dayNum === 1 || completedDaysSet.has(dayNum - 1)) {
+      // Unlocked current day in progress
+      const existing = tempTasks[dayNum] || [];
+      if (existing.length > 0) {
+        completedTasks[String(dayNum)] = existing;
+      }
+    }
+    // Otherwise dayNum is a locked future day (e.g., old migration ghost), so it is omitted.
+  }
+
+  const completedDays = Array.from(completedDaysSet).sort((a, b) => a - b);
+
+  // 3. Base XP from completed days (50 XP for Day 0 intro, 100 XP per regular day)
+  let baseXp = completedDays.reduce((acc, d) => acc + (d === 0 ? 50 : 100), 0);
+
+  // 4. Partial XP from uncompleted days that have completed tasks
+  for (const [dayStr, cleanTaskIds] of Object.entries(completedTasks)) {
+    const dayNum = Number(dayStr);
+    if (!completedDaysSet.has(dayNum)) {
+      const partialXp = Math.min(cleanTaskIds.length * 35, 100);
+      baseXp += partialXp;
     }
   }
 

@@ -5,6 +5,7 @@ import { XP_PER_DAY } from "@/data/curriculum";
 import { ACHIEVEMENTS, type AchievementDef } from "./achievements";
 import { localStorageAdapter, type ProgressStorage } from "./storage";
 import { createDefaultProgress, type DayStatus, type ProgressState } from "./types";
+import { validateAndSanitizeProgress } from "@/lib/security/progress-validator";
 
 /* ------------------------------------------------------------------ */
 /*  Tiny external store (works with React 19 useSyncExternalStore)     */
@@ -31,23 +32,31 @@ let isHydrating = false;
 
 function getClientAuthHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
+  const headers: Record<string, string> = {};
   try {
     const token = localStorage.getItem("javaforge_token_v2");
     if (token) {
-      return { Authorization: `Bearer ${token}` };
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const rawSession = localStorage.getItem("javaforge_session_v2");
+    if (rawSession) {
+      const parsed = JSON.parse(rawSession);
+      if (parsed?.id) headers["X-User-Id"] = String(parsed.id);
+      if (parsed?.username) headers["X-Username"] = String(parsed.username);
     }
   } catch {}
-  return {};
+  return headers;
 }
 
 /**
  * Hydrates progress directly from the backend database (Supabase PostgreSQL).
- * Automatically updates in-memory state and local storage cache.
+ * Automatically updates in-memory state and local storage cache, and pushes any newer local progress back to DB.
  */
 export async function hydrateFromServer(force = false): Promise<ProgressState | null> {
   if (typeof window === "undefined" || (isHydrating && !force)) return null;
   isHydrating = true;
   try {
+    ensureLoaded();
     const res = await fetch("/api/progress", {
       cache: "no-store",
       headers: {
@@ -59,27 +68,57 @@ export async function hydrateFromServer(force = false): Promise<ProgressState | 
       const data = await res.json();
       if (data?.progress) {
         const serverProgress = data.progress as ProgressState;
-        ensureLoaded();
         const mergedCompletedTasks: Record<string, string[]> = { ...(serverProgress.completedTasks || {}) };
         for (const [day, tasks] of Object.entries(state.completedTasks || {})) {
           const prev = mergedCompletedTasks[day] || [];
           mergedCompletedTasks[day] = Array.from(new Set([...prev, ...tasks]));
         }
-        const merged: ProgressState = {
+        const rawMerged: ProgressState = {
           ...serverProgress,
           xp: Math.max(serverProgress.xp || 0, state.xp || 0),
-          completedDays: Array.from(new Set([...(serverProgress.completedDays || []), ...(state.completedDays || [])])).sort((a, b) => a - b),
+          completedDays: Array.from(
+            new Set([...(serverProgress.completedDays || []), ...(state.completedDays || [])])
+          ).sort((a, b) => a - b),
           completedTasks: mergedCompletedTasks,
           completedAt: { ...(serverProgress.completedAt || {}), ...(state.completedAt || {}) },
           // Preserve local code edits over older server code
           code: { ...(serverProgress.code || {}), ...(state.code || {}) },
           achievements: { ...(serverProgress.achievements || {}), ...(state.achievements || {}) },
+          streak: {
+            current: Math.max(serverProgress.streak?.current || 0, state.streak?.current || 0),
+            best: Math.max(serverProgress.streak?.best || 0, state.streak?.best || 0),
+            lastActiveDate: state.streak?.lastActiveDate || serverProgress.streak?.lastActiveDate || null,
+          },
+          stats: {
+            runs: Math.max(serverProgress.stats?.runs || 0, state.stats?.runs || 0),
+            compileErrors: Math.max(serverProgress.stats?.compileErrors || 0, state.stats?.compileErrors || 0),
+            checks: Math.max(serverProgress.stats?.checks || 0, state.stats?.checks || 0),
+            scannerDays: Array.from(
+              new Set([...(serverProgress.stats?.scannerDays || []), ...(state.stats?.scannerDays || [])])
+            ).sort((a, b) => a - b),
+          },
         };
+        const { sanitized: merged } = validateAndSanitizeProgress(rawMerged);
         state = merged;
         loaded = true;
         storage.save(merged);
         emit();
+
+        // If local browser had newer progress/code/XP than the database, push merged state back to DB immediately
+        const serverCodeKeys = Object.keys(serverProgress.code || {}).length;
+        const mergedCodeKeys = Object.keys(merged.code || {}).length;
+        if (
+          merged.xp !== serverProgress.xp ||
+          merged.completedDays.length !== (serverProgress.completedDays?.length || 0) ||
+          mergedCodeKeys > serverCodeKeys
+        ) {
+          syncToServer(merged);
+        }
+
         return merged;
+      } else if (state.xp > 0 || state.completedDays.length > 0 || Object.keys(state.code || {}).length > 0) {
+        // User has local progress but no DB record yet: push immediately
+        syncToServer(state);
       }
     }
   } catch (err) {
@@ -91,6 +130,44 @@ export async function hydrateFromServer(force = false): Promise<ProgressState | 
 }
 
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Immediately synchronizes the current progress state to PostgreSQL and awaits completion.
+ */
+export async function syncNow(): Promise<void> {
+  if (typeof window === "undefined") return;
+  ensureLoaded();
+  if (syncTimer) {
+    clearTimeout(syncTimer);
+    syncTimer = null;
+  }
+  const headers = getClientAuthHeaders();
+  if (!headers.Authorization && !headers["X-User-Id"]) return;
+
+  try {
+    const res = await fetch("/api/progress", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      body: JSON.stringify(state),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.progress) {
+        const merged: ProgressState = {
+          ...data.progress,
+          code: { ...(data.progress.code || {}), ...(state.code || {}) },
+        };
+        state = merged;
+        storage.save(merged);
+        emit();
+      }
+    }
+  } catch {}
+}
 
 /**
  * Flushes any pending progress updates to the server immediately (e.g. before page unload).
@@ -132,24 +209,19 @@ function syncToServer(nextState: ProgressState) {
       if (res.ok) {
         const data = await res.json();
         if (data.progress && Array.isArray(data.progress.completedDays)) {
-          // If server merged state with previously completed days or tasks, preserve latest live state.code
-          const serverDays = data.progress.completedDays.length;
-          const currentDays = state.completedDays.length;
-          if (serverDays > currentDays || (data.progress.xp && data.progress.xp > state.xp)) {
-            const merged: ProgressState = {
-              ...data.progress,
-              code: { ...(data.progress.code || {}), ...(state.code || {}) },
-            };
-            state = merged;
-            storage.save(merged);
-            emit();
-          }
+          const merged: ProgressState = {
+            ...data.progress,
+            code: { ...(data.progress.code || {}), ...(state.code || {}) },
+          };
+          state = merged;
+          storage.save(merged);
+          emit();
         }
       }
     } catch {
       // Offline: progress is safely preserved in localStorage
     }
-  }, 400); // Fast 400ms debounce for immediate database persistence
+  }, 300); // Fast 300ms debounce for immediate database persistence
 }
 
 function commit(next: ProgressState) {

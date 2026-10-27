@@ -1,5 +1,6 @@
 import type { ProgressState } from "@/lib/progress/types";
 import { getCurrentUser } from "@/lib/auth/store";
+import { validateAndSanitizeProgress } from "@/lib/security/progress-validator";
 
 export type LeaderboardSort = "xp" | "tasks" | "streak";
 
@@ -17,30 +18,63 @@ export interface LeaderboardEntry {
 
 const PEER_STUDENTS = [
   {
-    id: "peer_nazar",
+    id: "cmvkkl34d0000jv086y8tjidg",
     username: "Nazar",
     avatar: "⚡️",
-    xp: 145,
-    completedTasksCount: 6,
-    completedDaysCount: 2,
-    streak: 1,
+    xp: 605,
+    completedTasksCount: 14,
+    completedDaysCount: 5,
+    streak: 3,
   },
   {
-    id: "peer_skittler",
+    id: "cmvi7jwgy0000egwoq8v5rv10",
+    username: "wercis",
+    avatar: "🚀",
+    xp: 385,
+    completedTasksCount: 9,
+    completedDaysCount: 4,
+    streak: 2,
+  },
+  {
+    id: "cmvjf8aco0000jq0743nk68wk",
     username: "Skittler",
     avatar: "👾",
-    xp: 20,
-    completedTasksCount: 1,
-    completedDaysCount: 1,
-    streak: 1,
+    xp: 300,
+    completedTasksCount: 6,
+    completedDaysCount: 3,
+    streak: 2,
   },
 ];
 
-function getLeague(rank: number, total: number): "Алмазная" | "Золотая" | "Серебряная" | "Бронзовая" {
+function getLeague(rank: number): "Алмазная" | "Золотая" | "Серебряная" | "Бронзовая" {
   if (rank === 1) return "Алмазная";
   if (rank === 2) return "Золотая";
   if (rank === 3) return "Серебряная";
   return "Бронзовая";
+}
+
+export function countRealCompletedTasks(progress: ProgressState): number {
+  const { sanitized } = validateAndSanitizeProgress(progress);
+  let count = 0;
+  const countedDays = new Set<number>();
+
+  for (const [dayStr, tasks] of Object.entries(sanitized.completedTasks || {})) {
+    const dayNum = Number(dayStr);
+    // Day 0 is Module 0 (environment setup) and has 0 coding tasks
+    if (dayNum <= 0) continue;
+    countedDays.add(dayNum);
+    if (Array.isArray(tasks)) {
+      count += sanitized.completedDays.includes(dayNum) ? Math.max(tasks.length, 3) : tasks.length;
+    }
+  }
+
+  for (const d of sanitized.completedDays) {
+    if (d >= 1 && !countedDays.has(d)) {
+      count += 3;
+    }
+  }
+
+  return count;
 }
 
 /**
@@ -55,59 +89,70 @@ export function getLeaderboardEntries(
     avatar: string;
     xp: number;
     completedDays: number;
+    completedTasksCount?: number;
     streak: number;
   }>
 ): LeaderboardEntry[] {
   const currentUser = getCurrentUser();
+  const currentUsernameLower = (currentUser?.username ?? "wercis").toLowerCase();
+  const { sanitized, calculatedXp } = validateAndSanitizeProgress(progress);
+  const localTasksCount = countRealCompletedTasks(sanitized);
+  const localDaysCount = sanitized.completedDays.length;
+  const localXp = Math.max(progress.xp, calculatedXp);
 
-  // Count user's completed tasks across all days
-  const userCompletedTasksCount = Object.values(progress.completedTasks || {}).reduce<number>(
-    (acc, tasks) => acc + (Array.isArray(tasks) ? tasks.length : 0),
-    0
+  const serverMatch = customPeers?.find(
+    (p) => p.username.toLowerCase() === currentUsernameLower || (currentUser?.id && p.id === currentUser.id)
   );
 
   const currentUserEntry: LeaderboardEntry = {
-    id: currentUser?.id ?? "current_user",
-    username: currentUser ? currentUser.username : "wercis",
-    avatar: currentUser?.avatar ?? "🚀",
-    xp: progress.xp > 0 ? progress.xp : 245,
-    completedTasksCount: Math.max(userCompletedTasksCount, progress.completedDays.length * 3, 7),
-    completedDaysCount: Math.max(progress.completedDays.length, 2),
-    streak: Math.max(progress.streak.current, 1),
+    id: serverMatch?.id ?? currentUser?.id ?? "current_user",
+    username: serverMatch?.username ?? currentUser?.username ?? "wercis",
+    avatar: serverMatch?.avatar ?? currentUser?.avatar ?? "🚀",
+    xp: Math.max(localXp, serverMatch?.xp ?? 0),
+    completedTasksCount: Math.max(localTasksCount, serverMatch?.completedTasksCount ?? 0),
+    completedDaysCount: Math.max(localDaysCount, serverMatch?.completedDays ?? 0),
+    streak: Math.max(sanitized.streak.current, serverMatch?.streak ?? 1, 1),
     isCurrentUser: true,
     league: "Алмазная",
   };
 
-  const currentUsernameLower = (currentUser?.username ?? "wercis").toLowerCase();
+  const allowedUsernames = new Set(["wercis", "nazar", "skittler"]);
 
-  const peersSource = (customPeers && customPeers.length > 0)
-    ? customPeers
-        .filter((p) => {
-          const lower = p.username.toLowerCase();
-          return (
-            (lower === "nazar" || lower === "skittler") &&
-            lower !== currentUsernameLower &&
-            p.id !== currentUser?.id
-          );
-        })
-        .map((p) => ({
-          id: p.id,
-          username: p.username,
-          avatar: p.avatar,
-          xp: p.xp,
-          completedTasksCount: Math.max(p.completedDays * 3, p.username.toLowerCase() === "nazar" ? 6 : 1),
-          completedDaysCount: p.completedDays,
-          streak: p.streak,
-          isCurrentUser: false,
-          league: "Бронзовая" as const,
-        }))
-    : PEER_STUDENTS.filter(
-        (p) => p.username.toLowerCase() !== currentUsernameLower
-      ).map((p) => ({
-        ...p,
-        isCurrentUser: false,
-        league: "Бронзовая" as const,
-      }));
+  const peersSource: LeaderboardEntry[] =
+    customPeers && customPeers.length > 0
+      ? customPeers
+          .filter((p) => {
+            const lower = p.username.toLowerCase();
+            return (
+              allowedUsernames.has(lower) &&
+              lower !== currentUsernameLower &&
+              p.id !== currentUser?.id
+            );
+          })
+          .map((p) => {
+            const codingDays = Math.max(0, p.completedDays - 1);
+            return {
+              id: p.id,
+              username: p.username,
+              avatar: p.avatar,
+              xp: p.xp,
+              completedTasksCount:
+                typeof p.completedTasksCount === "number"
+                  ? p.completedTasksCount
+                  : codingDays * 3,
+              completedDaysCount: p.completedDays,
+              streak: Math.max(p.streak, 1),
+              isCurrentUser: false,
+              league: "Бронзовая" as const,
+            };
+          })
+      : PEER_STUDENTS.filter((p) => p.username.toLowerCase() !== currentUsernameLower).map(
+          (p) => ({
+            ...p,
+            isCurrentUser: false,
+            league: "Бронзовая" as const,
+          })
+        );
 
   const allEntries: LeaderboardEntry[] = [currentUserEntry, ...peersSource];
 
@@ -122,6 +167,6 @@ export function getLeaderboardEntries(
   // Assign league tiers based on sorted position
   return allEntries.map((entry, index) => ({
     ...entry,
-    league: getLeague(index + 1, allEntries.length),
+    league: getLeague(index + 1),
   }));
 }

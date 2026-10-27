@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useProgress } from "@/lib/progress/store";
+import { useProgress, syncNow } from "@/lib/progress/store";
 import {
   getLeaderboardEntries,
   type LeaderboardSort,
@@ -36,6 +36,7 @@ export function LeaderboardModal({ open, onClose, onOpenAuth }: LeaderboardModal
         avatar: string;
         xp: number;
         completedDays: number;
+        completedTasksCount?: number;
         streak: number;
       }>
     | undefined
@@ -43,14 +44,22 @@ export function LeaderboardModal({ open, onClose, onOpenAuth }: LeaderboardModal
 
   useEffect(() => {
     if (!open) return;
-    fetch("/api/leaderboard")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.leaderboard && Array.isArray(data.leaderboard)) {
-          setServerPeers(data.leaderboard);
-        }
-      })
-      .catch(() => {});
+    let active = true;
+    syncNow()
+      .catch(() => {})
+      .finally(() => {
+        fetch(`/api/leaderboard?t=${Date.now()}`, { cache: "no-store" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (active && data?.leaderboard && Array.isArray(data.leaderboard)) {
+              setServerPeers(data.leaderboard);
+            }
+          })
+          .catch(() => {});
+      });
+    return () => {
+      active = false;
+    };
   }, [open]);
 
   if (!open) return null;
@@ -237,7 +246,7 @@ export function LeaderboardModal({ open, onClose, onOpenAuth }: LeaderboardModal
                         {entry.league} лига
                       </span>
                       <span className="text-[11px] text-zinc-500 hidden sm:inline">
-                        {entry.completedTasksCount} задач решено
+                        {entry.completedDaysCount} дн. • {entry.completedTasksCount} задач решено
                       </span>
                     </div>
                   </div>

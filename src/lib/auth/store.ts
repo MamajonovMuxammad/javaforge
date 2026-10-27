@@ -24,8 +24,19 @@ export function getStoredToken(): string | null {
 }
 
 export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
   const token = getStoredToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const sessionUser = loadSession();
+  if (sessionUser?.id) {
+    headers["X-User-Id"] = String(sessionUser.id);
+  }
+  if (sessionUser?.username) {
+    headers["X-Username"] = String(sessionUser.username);
+  }
+  return headers;
 }
 
 const AVATARS = ["☕️", "🚀", "⚡️", "💻", "🔥", "🛡️", "👾", "🦊", "🎯", "👑"];
