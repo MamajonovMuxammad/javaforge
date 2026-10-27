@@ -145,7 +145,9 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
   );
 
   const [code, setCode] = useState<string>(initialCode);
-  const [stdin, setStdin] = useState<string>(currentTask?.sampleInput ?? lesson.sampleInput ?? "");
+  const [stdin, setStdin] = useState<string>(
+    currentTask ? (currentTask.sampleInput ?? currentTask.exampleInput ?? "") : (lesson.sampleInput ?? "")
+  );
   const [activeTab, setActiveTab] = useState<TabType>("terminal");
 
   const [isRunning, setIsRunning] = useState(false);
@@ -164,7 +166,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
   );
 
   const quickPresets = getQuickPresets(currentTask, lesson);
-  const sampleLines = (currentTask?.sampleInput ?? currentTask?.exampleInput ?? lesson.sampleInput ?? "")
+  const sampleLines = (currentTask ? (currentTask.sampleInput ?? currentTask.exampleInput ?? "") : (lesson.sampleInput ?? ""))
     .split("\n")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
@@ -194,7 +196,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
     );
 
     setCode(freshCode);
-    setStdin(currentTask?.sampleInput ?? lesson.sampleInput ?? "");
+    setStdin(currentTask ? (currentTask.sampleInput ?? currentTask.exampleInput ?? "") : (lesson.sampleInput ?? ""));
     setSessionInputs([]);
     setTerminalInputValue("");
     setRunResult(null);
@@ -361,8 +363,8 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
     setIsChecking(true);
     setActiveTab("tests");
     try {
-      const testsToRun = currentTask?.tests ?? lesson.tests ?? [];
-      const reqsToRun = currentTask?.requiredCode ?? lesson.requiredCode;
+      const testsToRun = currentTask ? (currentTask.tests ?? []) : (lesson.tests ?? []);
+      const reqsToRun = currentTask ? (currentTask.requiredCode ?? []) : (lesson.requiredCode ?? []);
 
       if (testsToRun.length > 0) {
         const outcome = await checkTaskSolution({ tests: testsToRun, requiredCode: reqsToRun }, code);

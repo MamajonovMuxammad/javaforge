@@ -107,6 +107,9 @@ export function matchesSingleExpected(expected: string, stdout: string): boolean
     const allLines = (normAct + "\n" + strippedAct).split("\n");
     for (const line of allLines) {
       if (line.includes(label)) {
+        // If expected value is empty or wildcard, matching the label with non-empty line content is sufficient
+        if (!value || value === "*") return true;
+
         if (line.includes(value)) return true;
         const valNoZero = value.replace(/(\d+)\.0\b/g, "$1");
         if (line.includes(valNoZero)) return true;
@@ -114,6 +117,31 @@ export function matchesSingleExpected(expected: string, stdout: string): boolean
         if (line.includes(valComma)) return true;
         if (value === "true" && (line.includes("да") || line.includes("true"))) return true;
         if (value === "false" && (line.includes("нет") || line.includes("false"))) return true;
+
+        // Flexible match for user identities / custom names (e.g. student writing their own name instead of "Алексей")
+        const identityLabels = [
+          "игрок", "студент", "пользователь", "имя", "разработчик",
+          "автор", "клиент", "сотрудник", "name", "user", "username", "student"
+        ];
+        if (identityLabels.includes(label)) {
+          const actualColon = line.indexOf(":");
+          if (actualColon >= 0) {
+            const actualVal = line.slice(actualColon + 1).trim();
+            // Accepts any non-empty name
+            if (actualVal.length > 0 && !actualVal.startsWith("<") && !actualVal.startsWith("[")) {
+              return true;
+            }
+          }
+        }
+
+        // Flexible match for custom age (e.g. student entering their own age instead of hardcoded number)
+        if (label === "возраст" || label === "age") {
+          const actualColon = line.indexOf(":");
+          if (actualColon >= 0) {
+            const actualVal = line.slice(actualColon + 1).trim();
+            if (/\d+/.test(actualVal)) return true;
+          }
+        }
       }
     }
   }
@@ -152,7 +180,13 @@ export function stripComments(code: string): string {
 export function checkRequirements(task: { requiredCode?: CodeRequirement[] }, code: string): string[] {
   const source = stripComments(code);
   return (task.requiredCode ?? [])
-    .filter((req) => !new RegExp(req.pattern, req.flags).test(source))
+    .filter((req) => {
+      // If the requirement specifically looks for comments (// or /*), check against the original code
+      const isCommentRequirement =
+        req.pattern.includes("//") || req.pattern.includes("/*") || req.pattern.includes("/\\*");
+      const codeToCheck = isCommentRequirement ? code : source;
+      return !new RegExp(req.pattern, req.flags).test(codeToCheck);
+    })
     .map((req) => req.message);
 }
 

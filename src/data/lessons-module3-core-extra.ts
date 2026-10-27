@@ -341,7 +341,7 @@ public class Main {
         { label: "World, Hello", stdin: "World\nHello\n", expected: ["Список: [Hello, World]"] },
       ],
       requiredCode: [
-        { pattern: "LinkedList<String>", message: "Используй LinkedList<String>" },
+        { pattern: "LinkedList", message: "Используй LinkedList" },
         { pattern: "\\.addFirst\\(", message: "Используй метод addFirst()" },
         { pattern: "\\.addLast\\(", message: "Используй метод addLast()" },
       ],
@@ -469,7 +469,7 @@ public class Main {
         { label: "Два раза назад", stdin: "5\nVISIT a.com\nVISIT b.com\nVISIT c.com\nBACK\nBACK\n", expected: ["Текущая: b.com", "Текущая: a.com"] },
       ],
       requiredCode: [
-        { pattern: "LinkedList<String>", message: "Используй LinkedList<String> для истории" },
+        { pattern: "LinkedList", message: "Используй LinkedList для истории" },
       ],
       hints: ["`if (history.size() > 1) { history.removeLast(); } return history.getLast();`"],
       solution: `import java.util.LinkedList;
@@ -866,7 +866,7 @@ public class Main {
         { label: "Все одинаковые", stdin: "3\nтест\nтест\nтест\n", expected: ["Уникальных слов: 1"] },
       ],
       requiredCode: [
-        { pattern: "HashSet<String>", message: "Используй HashSet<String>" },
+        { pattern: "HashSet", message: "Используй коллекцию HashSet" },
         { pattern: "\\.add\\(", message: "Используй метод .add()" },
       ],
       hints: ["`for (int i = 0; i < n; i++) set.add(scanner.nextLine());`"],
@@ -921,7 +921,7 @@ public class Main {
         { label: "1 3 2 1", stdin: "4\n1 3 2 1\n", expected: ["1 2 3"] },
       ],
       requiredCode: [
-        { pattern: "TreeSet<Integer>", message: "Используй TreeSet<Integer>" },
+        { pattern: "TreeSet", message: "Используй коллекцию TreeSet" },
       ],
       hints: ["`for (int x : set) System.out.print(x + \" \");`"],
       solution: `import java.util.Scanner;
@@ -978,7 +978,7 @@ public class Main {
         { label: "java spring java", stdin: "java spring java\n", expected: ["java: 2", "spring: 1"] },
       ],
       requiredCode: [
-        { pattern: "TreeMap<String,\\s*Integer>", message: "Используй TreeMap<String, Integer>" },
+        { pattern: "TreeMap", message: "Используй коллекцию TreeMap" },
         { pattern: "getOrDefault", message: "Используй метод getOrDefault" },
       ],
       hints: ["`freq.put(w, freq.getOrDefault(w, 0) + 1);`"],

@@ -413,22 +413,20 @@ System.out.println("3 + 3"); // Выведет: 3 + 3 (текст)`,
       {
         id: "d2_t2",
         type: "practice",
-        title: "Задача 2: Основная практика (Оформление с JavaDoc)",
-        shortDesc: "Добавь JavaDoc спецификацию к программе расчёта скидки",
+        title: "Задача 2: Основная практика (Расчёт скидки на товар)",
+        shortDesc: "Объяви переменные цены и скидки и выведи итоговый чек",
         difficulty: "Лёгкий",
         xp: 35,
         description:
-          "Оформи исходный код программы. Напиши многострочный JavaDoc-комментарий над методом `main` с описанием программы, а также добавь однострочные пояснения к ключевым этапам: расчёту скидки и выводу итоговой суммы. Программа должна выводить:\n`Товар: Ноутбук`\n`Цена: 50000`\n`Скидка: 5000`\n`К оплате: 45000`",
+          "Напиши программу расчёта скидки на товар в магазине техники.\nОбъяви переменные:\n- `int price = 50000;` (цена ноутбука)\n- `int discount = 5000;` (размер скидки)\n- `int total = price - discount;` (итоговая цена к оплате)\n\nВыведи товарный чек в 4 строки:\n`Товар: Ноутбук`\n`Цена: 50000`\n`Скидка: 5000`\n`К оплате: 45000`\n\n(По желанию можешь оформить ключевые шаги комментариями `//` или `/** ... */`).",
         requirements: [
-          "Используй JavaDoc комментарий `/** ... */` над методом `main`.",
-          "Используй однострочные комментарии `//` перед блоками логики.",
+          "Объяви переменные `price`, `discount`, `total`.",
           "Выведи 4 строки с правильными суммами.",
         ],
         exampleOutput: "Товар: Ноутбук\nЦена: 50000\nСкидка: 5000\nК оплате: 45000",
         starterCode: `public class Main {
-    // TODO: добавь JavaDoc комментарий к main
     public static void main(String[] args) {
-        // TODO: добавь расчет и вывод
+        // TODO: объяви price, discount, total и выведи чек
     }
 }
 `,
@@ -444,12 +442,12 @@ System.out.println("3 + 3"); // Выведет: 3 + 3 (текст)`,
           },
         ],
         requiredCode: [
-          { pattern: "/\\*\\*", message: "Добавь JavaDoc комментарий /** ... */" },
-          { pattern: "//", message: "Используй однострочные комментарии //" },
+          { pattern: "int\\s+price", message: "Объяви переменную int price" },
+          { pattern: "int\\s+discount", message: "Объяви переменную int discount" },
         ],
         hints: [
-          "Напиши `/** Программа расчета скидки */` над методом `main`.",
-          "Выведи строки через `System.out.println`.",
+          "`int total = price - discount;`",
+          "`System.out.println(\"Цена: \" + price);`",
         ],
         solution: `public class Main {
     /**
@@ -617,7 +615,7 @@ System.out.println(x + y + z); // 61`,
         difficulty: "Лёгкий",
         xp: 25,
         description:
-          "Создай переменные:\n- `String username = \"Алексей\";`\n- `int level = 5;`\n- `int coins = 350;`\nВыведи в консоль карточку:\n`Игрок: Алексей`\n`Уровень: 5`\n`Баланс монет: 350`",
+          "Создай переменные для игрового профиля:\n- `String username = \"Алексей\";` (или укажи своё имя / никнейм!)\n- `int level = 5;`\n- `int coins = 350;`\n\nВыведи в консоль карточку:\n`Игрок: Алексей` (или твоё имя)\n`Уровень: 5`\n`Баланс монет: 350`",
         requirements: [
           "Используй правильные типы данных: `String` и `int`.",
           "Выведи 3 строки с объединением текста и переменных через `+`.",
@@ -633,7 +631,7 @@ System.out.println(x + y + z); // 61`,
           {
             label: "Проверка карточки игрока",
             expected: [
-              "Игрок: Алексей",
+              "Игрок: Алексей|Игрок:",
               "Уровень: 5",
               "Баланс монет: 350",
             ],
@@ -738,7 +736,7 @@ System.out.println(x + y + z); // 61`,
           },
         ],
         requiredCode: [
-          { pattern: "int\\s+fuel\\s*=\\s*1500\\s*,", message: "Объяви переменные через запятую: int fuel = 1500, ..." },
+          { pattern: "int\\s+fuel", message: "Объяви переменную int fuel = 1500" },
         ],
         hints: ["`int used = consumptionPerHour * flightHours;`"],
         solution: `public class Main {
@@ -950,14 +948,21 @@ System.out.println(letterByCode); // напечатает: A`,
           {
             label: "Проверка расшифровки ASCII",
             expected: [
-              "Код 65: A",
-              "Код 66: B",
-              "Код 67: C",
-              "Секретное слово: ABC",
+              "Код 65: A|65: A|Буква: A|A",
+              "Код 66: B|66: B|Буква: B|B",
+              "Код 67: C|67: C|Буква: C|C",
+              "Секретное слово: ABC|Слово: ABC|ABC",
             ],
           },
         ],
-        hints: ["Слово можно объединить: `\"\" + letter + nextLetter + thirdLetter`."],
+        requiredCode: [
+          { pattern: "char\\s+\\w+", message: "Объяви переменные типа char" },
+        ],
+        hints: [
+          "Объяви базовую букву: `char letter = 65;`",
+          "Для следующей буквы используй явное приведение: `char nextLetter = (char) (letter + 1);`",
+          "Слово можно собрать так: `\"\" + letter + nextLetter + thirdLetter` или вывести в `println(\"Секретное слово: \" + letter + nextLetter + thirdLetter)`.",
+        ],
         solution: `public class Main {
     public static void main(String[] args) {
         char letter = 65;
