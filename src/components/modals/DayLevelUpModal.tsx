@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Sparkles, Zap, ArrowRight, Trophy, Flame, BookOpen, CheckCircle2 } from "lucide-react";
-import { getLesson } from "@/data/curriculum";
+import { getLesson, TOTAL_DAYS } from "@/data/curriculum";
 
 interface DayLevelUpModalProps {
   open: boolean;
@@ -350,7 +350,7 @@ export function DayLevelUpModal({
                   Следующая тема курса:
                 </span>
                 <span className="font-mono text-zinc-500">
-                  Урок {toDay} из 30
+                  Урок {toDay} из {TOTAL_DAYS - 1}
                 </span>
               </div>
 

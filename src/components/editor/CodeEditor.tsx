@@ -144,10 +144,13 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
     lesson.starterCode ?? ""
   );
 
+  const getDefaultStdin = (task?: LessonTask) =>
+    task
+      ? (task.sampleInput ?? task.tests?.[0]?.stdin?.trim() ?? task.exampleInput ?? "")
+      : (lesson.sampleInput ?? "");
+
   const [code, setCode] = useState<string>(initialCode);
-  const [stdin, setStdin] = useState<string>(
-    currentTask ? (currentTask.sampleInput ?? currentTask.exampleInput ?? "") : (lesson.sampleInput ?? "")
-  );
+  const [stdin, setStdin] = useState<string>(() => getDefaultStdin(currentTask));
   const [activeTab, setActiveTab] = useState<TabType>("terminal");
 
   const [isRunning, setIsRunning] = useState(false);
@@ -159,6 +162,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
   const [terminalInputValue, setTerminalInputValue] = useState("");
   const [sessionInputs, setSessionInputs] = useState<string[]>([]);
   const terminalInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<{ getValue: () => string; setValue: (v: string) => void } | null>(null);
 
   const hasScanner = usesScanner(code) || /Scanner\s+[a-zA-Z0-9_$]+\s*=\s*new\s+Scanner/i.test(code);
   const isWaitingForInput = Boolean(
@@ -166,7 +170,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
   );
 
   const quickPresets = getQuickPresets(currentTask, lesson);
-  const sampleLines = (currentTask ? (currentTask.sampleInput ?? currentTask.exampleInput ?? "") : (lesson.sampleInput ?? ""))
+  const sampleLines = getDefaultStdin(currentTask)
     .split("\n")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
@@ -175,6 +179,22 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
   // Debounced auto-save
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasUserEditedRef = useRef<boolean>(false);
+
+  // Listen for "Вставить решение в редактор" event from LessonContent
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ day: number; taskId?: string; code: string }>).detail;
+      if (detail && detail.day === lesson.day && (!detail.taskId || detail.taskId === taskId)) {
+        hasUserEditedRef.current = true;
+        setCode(detail.code);
+        editorRef.current?.setValue(detail.code);
+        saveCode(lesson.day, detail.code, taskId);
+        setCheckOutcome(null);
+      }
+    };
+    window.addEventListener("javaforge:apply-solution", handler);
+    return () => window.removeEventListener("javaforge:apply-solution", handler);
+  }, [lesson.day, taskId]);
 
   // When switching day or active task
   useEffect(() => {
@@ -196,7 +216,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
     );
 
     setCode(freshCode);
-    setStdin(currentTask ? (currentTask.sampleInput ?? currentTask.exampleInput ?? "") : (lesson.sampleInput ?? ""));
+    setStdin(getDefaultStdin(currentTask));
     setSessionInputs([]);
     setTerminalInputValue("");
     setRunResult(null);
@@ -237,6 +257,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
         saveTimeoutRef.current = null;
       }
       setCode(targetStarter);
+      editorRef.current?.setValue(targetStarter);
       saveCode(lesson.day, targetStarter, taskId);
       toast({
         variant: "info",
@@ -251,15 +272,27 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
     setIsRunning(true);
     setActiveTab("terminal");
     try {
+      const activeCode = editorRef.current ? editorRef.current.getValue() : code;
+      if (activeCode !== code) setCode(activeCode);
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      saveCode(lesson.day, activeCode, taskId);
+
       let inputToUse: string;
       if (overrideStdin !== undefined) {
         inputToUse = overrideStdin;
       } else if (hasScanner) {
         if (clearSession) {
-          setSessionInputs([]);
-          inputToUse = "";
+          const trimmed = stdin.trim();
+          const lines = trimmed ? trimmed.split("\n").map((s) => s.trim()).filter(Boolean) : [];
+          setSessionInputs(lines);
+          inputToUse = trimmed ? trimmed + "\n" : "";
         } else if (sessionInputs.length > 0) {
           inputToUse = sessionInputs.join("\n") + "\n";
+        } else if (stdin.trim()) {
+          inputToUse = stdin.trim() + "\n";
         } else {
           inputToUse = "";
         }
@@ -267,7 +300,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
         inputToUse = stdin;
       }
 
-      const res = await runJava(code, inputToUse);
+      const res = await runJava(activeCode, inputToUse);
       setRunResult(res);
 
       if (overrideStdin !== undefined) {
@@ -335,7 +368,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
     const val = terminalInputValue.trim();
     if (!val) return;
 
-    const nextInputs = [...sessionInputs, val];
+    const nextInputs = isWaitingForInput ? [...sessionInputs, val] : [val];
     setSessionInputs(nextInputs);
     setTerminalInputValue("");
 
@@ -363,11 +396,19 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
     setIsChecking(true);
     setActiveTab("tests");
     try {
+      const activeCode = editorRef.current ? editorRef.current.getValue() : code;
+      if (activeCode !== code) setCode(activeCode);
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      saveCode(lesson.day, activeCode, taskId);
+
       const testsToRun = currentTask ? (currentTask.tests ?? []) : (lesson.tests ?? []);
       const reqsToRun = currentTask ? (currentTask.requiredCode ?? []) : (lesson.requiredCode ?? []);
 
       if (testsToRun.length > 0) {
-        const outcome = await checkTaskSolution({ tests: testsToRun, requiredCode: reqsToRun }, code);
+        const outcome = await checkTaskSolution({ tests: testsToRun, requiredCode: reqsToRun }, activeCode);
         setCheckOutcome(outcome);
 
         if (outcome.passed) {
@@ -377,8 +418,8 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
           const taskXp = currentTask?.xp ?? 35;
 
           const res = completeTask(lesson.day, taskId, taskXp, allTaskIds, {
-            code,
-            usedScanner: usesScanner(code),
+            code: activeCode,
+            usedScanner: usesScanner(activeCode),
           });
 
           if (res.dayCompleted) {
@@ -425,13 +466,13 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
         }
       } else {
         // Freeform / outline task
-        const res = await runJava(code, stdin);
+        const res = await runJava(activeCode, stdin);
         setRunResult(res);
         setActiveTab("terminal");
 
         if (res.status === "success") {
           await fireConfetti("success");
-          completeDay(lesson.day, { code });
+          completeDay(lesson.day, { code: activeCode });
           toast({
             variant: "success",
             title: "Код выполнен успешно!",
@@ -593,6 +634,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
           value={code}
           onChange={handleCodeChange}
           onMount={(editor, monaco) => {
+            editorRef.current = editor;
             // Register rich Java autocomplete, hover documentation, and IntelliJ live templates
             registerJavaCompletions(monaco);
 
@@ -629,12 +671,15 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
               comments: false,
               strings: true,
             },
+            tabCompletion: "on",
             acceptSuggestionOnCommitCharacter: true,
-            snippetSuggestions: "top",
-            wordBasedSuggestions: "allDocuments",
+            snippetSuggestions: "inline",
+            wordBasedSuggestions: "currentDocument",
             parameterHints: { enabled: true },
             suggest: {
               preview: true,
+              localityBonus: true,
+              selectionMode: "always",
               showMethods: true,
               showFunctions: true,
               showConstructors: true,

@@ -228,8 +228,8 @@ export function Header({
             </button>
           )}
 
-          {/* Test Level-Up Transition Button */}
-          {onTestLevelUp && (
+          {/* Test Level-Up Transition Button (dev only) */}
+          {onTestLevelUp && process.env.NODE_ENV === "development" && (
             <button
               type="button"
               onClick={onTestLevelUp}

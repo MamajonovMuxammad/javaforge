@@ -70,34 +70,52 @@ async function checkLocalJava(): Promise<boolean> {
   });
 }
 
-async function runLocalJava(code: string, stdin = "", timeoutMs = 8_000): Promise<RunResult> {
-  const started = Date.now();
-  let tmpDir = "";
-  try {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "java_exec_"));
-    const filePath = path.join(tmpDir, "Main.java");
-    fs.writeFileSync(filePath, code, "utf8");
-  } catch (err) {
-    throw new ProviderError(`Не удалось создать временный файл: ${(err as Error).message}`);
-  }
+const LOCAL_JVM_FLAGS = [
+  "-Dfile.encoding=UTF-8",
+  "-Dsun.stdout.encoding=UTF-8",
+  "-Dsun.stderr.encoding=UTF-8",
+  "-Dstdin.encoding=UTF-8",
+  "-Dsun.stdin.encoding=UTF-8",
+  "-Dnative.encoding=UTF-8",
+  "-Duser.language=en",
+  "-Duser.country=US",
+];
 
-  return new Promise<RunResult>((resolve, reject) => {
+/**
+ * If code reads floating-point values via Scanner.nextDouble() / nextFloat(),
+ * normalize standalone comma-decimal numbers (e.g. "8,5" -> "8.5") in stdin
+ * so Locale.US Scanner never throws InputMismatchException.
+ */
+function normalizeStdinForJava(code: string, stdin: string): string {
+  if (!stdin) return "";
+  if (/\bnext(?:Double|Float)\s*\(/.test(code)) {
+    return stdin.replace(/(^|[\s\n])(-?\d+),(\d+)(?=$|[\s\r\n])/g, "$1$2.$3");
+  }
+  return stdin;
+}
+
+/**
+ * Checks if another top-level class/interface/enum/record appears before `class Main`.
+ * JEP 330 (`java Main.java`) executes the first class in the file, so multi-class files
+ * where a helper class precedes `Main` must be compiled with `javac` first.
+ */
+function hasHelperTypeBeforeMain(code: string): boolean {
+  const clean = code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  return /\b(?:class|interface|enum|record)\s+(?!Main\b)[A-Za-z_$][\w$]*[\s\S]*?\bclass\s+Main\b/.test(clean);
+}
+
+function spawnWithOutput(
+  cmd: string,
+  args: string[],
+  cwd: string,
+  stdin: string,
+  timeoutMs: number
+): Promise<{ exitCode: number | null; stdout: string; stderr: string; killed: boolean }> {
+  return new Promise((resolve, reject) => {
     let child;
     try {
-      child = spawn(
-        "java",
-        [
-          "-Dfile.encoding=UTF-8",
-          "-Dsun.stdout.encoding=UTF-8",
-          "-Dsun.stderr.encoding=UTF-8",
-          "Main.java",
-        ],
-        { cwd: tmpDir, windowsHide: true }
-      );
+      child = spawn(cmd, args, { cwd, windowsHide: true });
     } catch (err) {
-      try {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      } catch {}
       return reject(err);
     }
 
@@ -121,7 +139,7 @@ async function runLocalJava(code: string, stdin = "", timeoutMs = 8_000): Promis
 
     if (stdin) {
       try {
-        child.stdin.write(stdin);
+        child.stdin.write(stdin, "utf8");
       } catch {}
     }
     try {
@@ -130,44 +148,114 @@ async function runLocalJava(code: string, stdin = "", timeoutMs = 8_000): Promis
 
     child.on("error", (err) => {
       clearTimeout(timer);
-      try {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      } catch {}
       reject(err);
     });
 
     child.on("close", (exitCode) => {
       clearTimeout(timer);
-      const timeMs = Date.now() - started;
-      try {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      } catch {}
+      resolve({ exitCode, stdout, stderr, killed });
+    });
+  });
+}
 
-      if (killed) {
-        return resolve({
+async function runLocalJava(code: string, stdin = "", timeoutMs = 8_000): Promise<RunResult> {
+  const started = Date.now();
+  let tmpDir = "";
+  try {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "java_exec_"));
+    const filePath = path.join(tmpDir, "Main.java");
+    fs.writeFileSync(filePath, code, "utf8");
+  } catch (err) {
+    throw new ProviderError(`Не удалось создать временный файл: ${(err as Error).message}`);
+  }
+
+  try {
+    if (hasHelperTypeBeforeMain(code)) {
+      const compileRes = await spawnWithOutput(
+        "javac",
+        ["-encoding", "UTF-8", "Main.java"],
+        tmpDir,
+        "",
+        timeoutMs
+      );
+      if (compileRes.exitCode !== 0) {
+        return {
+          status: "compile_error",
+          stdout: "",
+          stderr: "",
+          compileOutput: truncate(compileRes.stderr || compileRes.stdout || "Ошибка компиляции javac"),
+          exitCode: compileRes.exitCode,
+          provider: "local",
+          timeMs: Date.now() - started,
+        };
+      }
+      const runRes = await spawnWithOutput(
+        "java",
+        [...LOCAL_JVM_FLAGS, "-cp", ".", "Main"],
+        tmpDir,
+        stdin,
+        timeoutMs
+      );
+      const timeMs = Date.now() - started;
+      if (runRes.killed) {
+        return {
           status: "timeout",
-          stdout: truncate(stdout),
+          stdout: truncate(runRes.stdout),
           stderr: "Превышено максимальное время выполнения программы (лимит 8 секунд)",
           compileOutput: "",
           exitCode: null,
           provider: "local",
           timeMs,
-        });
+        };
       }
-
-      const isCompileError =
-        exitCode !== 0 && (stderr.includes("error:") || stderr.includes("compilation failed"));
-      return resolve({
-        status: isCompileError ? "compile_error" : exitCode === 0 ? "success" : "runtime_error",
-        stdout: truncate(stdout),
-        stderr: isCompileError ? "" : truncate(stderr),
-        compileOutput: isCompileError ? truncate(stderr) : "",
-        exitCode,
+      return {
+        status: runRes.exitCode === 0 ? "success" : "runtime_error",
+        stdout: truncate(runRes.stdout),
+        stderr: truncate(runRes.stderr),
+        compileOutput: "",
+        exitCode: runRes.exitCode,
         provider: "local",
         timeMs,
-      });
-    });
-  });
+      };
+    }
+
+    const res = await spawnWithOutput(
+      "java",
+      [...LOCAL_JVM_FLAGS, "Main.java"],
+      tmpDir,
+      stdin,
+      timeoutMs
+    );
+    const timeMs = Date.now() - started;
+
+    if (res.killed) {
+      return {
+        status: "timeout",
+        stdout: truncate(res.stdout),
+        stderr: "Превышено максимальное время выполнения программы (лимит 8 секунд)",
+        compileOutput: "",
+        exitCode: null,
+        provider: "local",
+        timeMs,
+      };
+    }
+
+    const isCompileError =
+      res.exitCode !== 0 && (res.stderr.includes("error:") || res.stderr.includes("compilation failed"));
+    return {
+      status: isCompileError ? "compile_error" : res.exitCode === 0 ? "success" : "runtime_error",
+      stdout: truncate(res.stdout),
+      stderr: isCompileError ? "" : truncate(res.stderr),
+      compileOutput: isCompileError ? truncate(res.stderr) : "",
+      exitCode: res.exitCode,
+      provider: "local",
+      timeMs,
+    };
+  } finally {
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {}
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -252,7 +340,8 @@ async function runPiston(code: string, stdin: string): Promise<RunResult> {
  * Everything is kept on the same line, so compiler/stack-trace line numbers stay correct.
  */
 const UTF8_INIT =
-  'static{try{System.setOut(new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out),true,"UTF-8"));' +
+  'static{try{java.util.Locale.setDefault(java.util.Locale.US);' +
+  'System.setOut(new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out),true,"UTF-8"));' +
   'System.setErr(new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.err),true,"UTF-8"));}' +
   "catch(java.io.UnsupportedEncodingException e){}}";
 
@@ -419,13 +508,19 @@ async function runPaiza(code: string, stdin = ""): Promise<RunResult> {
 
       const isTimeout = details.result === "timeout";
       const isRuntimeError = details.result === "failure";
+      const parsedExit =
+        details.exit_code !== undefined && details.exit_code !== null
+          ? Number(details.exit_code)
+          : isRuntimeError
+          ? 1
+          : 0;
 
       return {
         status: isTimeout ? "timeout" : isRuntimeError ? "runtime_error" : "success",
         stdout: truncate(details.stdout ?? ""),
         stderr: truncate(details.stderr ?? ""),
         compileOutput: "",
-        exitCode: details.exit_code ?? (isRuntimeError ? 1 : 0),
+        exitCode: Number.isNaN(parsedExit) ? (isRuntimeError ? 1 : 0) : parsedExit,
         provider: "paiza",
         timeMs,
       };
@@ -439,7 +534,8 @@ async function runPaiza(code: string, stdin = ""): Promise<RunResult> {
 /*  Public entry                                                       */
 /* ------------------------------------------------------------------ */
 
-export async function executeJava(code: string, stdin = ""): Promise<RunResult> {
+export async function executeJava(code: string, rawStdin = ""): Promise<RunResult> {
+  const stdin = normalizeStdinForJava(code, rawStdin);
   const mode = (process.env.JAVA_RUNNER ?? "auto").toLowerCase();
 
   if (mode === "local") return runLocalJava(code, stdin);

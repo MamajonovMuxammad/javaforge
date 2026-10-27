@@ -59,11 +59,27 @@ export async function hydrateFromServer(force = false): Promise<ProgressState | 
       const data = await res.json();
       if (data?.progress) {
         const serverProgress = data.progress as ProgressState;
-        state = serverProgress;
+        ensureLoaded();
+        const mergedCompletedTasks: Record<string, string[]> = { ...(serverProgress.completedTasks || {}) };
+        for (const [day, tasks] of Object.entries(state.completedTasks || {})) {
+          const prev = mergedCompletedTasks[day] || [];
+          mergedCompletedTasks[day] = Array.from(new Set([...prev, ...tasks]));
+        }
+        const merged: ProgressState = {
+          ...serverProgress,
+          xp: Math.max(serverProgress.xp || 0, state.xp || 0),
+          completedDays: Array.from(new Set([...(serverProgress.completedDays || []), ...(state.completedDays || [])])).sort((a, b) => a - b),
+          completedTasks: mergedCompletedTasks,
+          completedAt: { ...(serverProgress.completedAt || {}), ...(state.completedAt || {}) },
+          // Preserve local code edits over older server code
+          code: { ...(serverProgress.code || {}), ...(state.code || {}) },
+          achievements: { ...(serverProgress.achievements || {}), ...(state.achievements || {}) },
+        };
+        state = merged;
         loaded = true;
-        storage.save(serverProgress);
+        storage.save(merged);
         emit();
-        return serverProgress;
+        return merged;
       }
     }
   } catch (err) {
@@ -116,12 +132,16 @@ function syncToServer(nextState: ProgressState) {
       if (res.ok) {
         const data = await res.json();
         if (data.progress && Array.isArray(data.progress.completedDays)) {
-          // If server merged state with previously completed days or tasks
+          // If server merged state with previously completed days or tasks, preserve latest live state.code
           const serverDays = data.progress.completedDays.length;
-          const currentDays = nextState.completedDays.length;
-          if (serverDays >= currentDays || (data.progress.xp && data.progress.xp >= nextState.xp)) {
-            state = data.progress;
-            storage.save(data.progress);
+          const currentDays = state.completedDays.length;
+          if (serverDays > currentDays || (data.progress.xp && data.progress.xp > state.xp)) {
+            const merged: ProgressState = {
+              ...data.progress,
+              code: { ...(data.progress.code || {}), ...(state.code || {}) },
+            };
+            state = merged;
+            storage.save(merged);
             emit();
           }
         }
@@ -342,6 +362,9 @@ export function completeTask(
   const existingTasks = s.completedTasks[dayKey] ?? [];
 
   if (existingTasks.includes(taskId)) {
+    if (opts.code !== undefined && s.code[codeKey] !== opts.code) {
+      commit({ ...s, code: { ...s.code, [codeKey]: opts.code } });
+    }
     return { xpGained: 0, unlocked: [], dayCompleted: s.completedDays.includes(day), taskAlreadyCompleted: true };
   }
 

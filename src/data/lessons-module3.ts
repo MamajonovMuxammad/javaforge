@@ -399,7 +399,7 @@ public class Main {
             ],
           },
         ],
-        requiredCode: [{ pattern: "\\\\t", message: "Используй табуляцию \\t" }],
+        requiredCode: [{ pattern: "(\\\\t|\\t|printf)", message: "Используй табуляцию \\t" }],
         hints: ["Внутренний цикл: `System.out.print((i * j) + \"\\t\");`"],
         solution: `import java.util.Scanner;
 
@@ -410,7 +410,7 @@ public class Main {
 
         for (int i = 1; i <= n; i++) {
             for (int j = 1; j <= n; j++) {
-                System.out.print((i * j) + "\t");
+                System.out.print((i * j) + "\\t");
             }
             System.out.println();
         }
@@ -555,9 +555,9 @@ for (int i = 0; i < 6; i++) {
 }
 `,
         tests: [
-          { label: "Поиск числа", expected: ["Найдено число: 154"] },
+          { label: "Поиск числа", expected: ["Найдено число: 154|154"] },
         ],
-        requiredCode: [{ pattern: "break;", message: "Используй оператор break;" }],
+        requiredCode: [{ pattern: "\\bbreak\\b", message: "Используй оператор break;" }],
         hints: ["`if (i % 7 == 0 && i % 11 == 0) { System.out.println(\"Найдено число: \" + i); break; }`"],
         solution: `public class Main {
     public static void main(String[] args) {
@@ -604,7 +604,7 @@ for (int i = 0; i < 6; i++) {
             ],
           },
         ],
-        requiredCode: [{ pattern: "continue;", message: "Используй continue;" }],
+        requiredCode: [{ pattern: "\\bcontinue\\b", message: "Используй continue;" }],
         hints: ["`if (i % 3 == 0) continue;`"],
         solution: `public class Main {
     public static void main(String[] args) {
@@ -742,7 +742,7 @@ for (int i = 0; i < scores.length; i++) {
         difficulty: "Лёгкий",
         xp: 25,
         description:
-          "Создай массив из 5 целых чисел: `{10, 20, 30, 40, 50}`.\n1) Напечатай `Длина: <length>`\n2) В цикле выведи элементы в прямом порядке через запятую: `Прямой: 10 20 30 40 50`\n3) В обратном цикле `for (int i = arr.length - 1; i >= 0; i--)` выведи: `Обратный: 50 40 30 20 10`",
+          "Создай массив из 5 целых чисел: `{10, 20, 30, 40, 50}`.\n1) Напечатай `Длина: <length>`\n2) В цикле выведи элементы в прямом порядке через пробел: `Прямой: 10 20 30 40 50`\n3) В обратном цикле `for (int i = arr.length - 1; i >= 0; i--)` выведи: `Обратный: 50 40 30 20 10`",
         requirements: [
           "Используй свойство `.length`.",
           "Выведи 3 строки.",
@@ -761,8 +761,8 @@ for (int i = 0; i < scores.length; i++) {
             label: "Проверка вывода массива",
             expected: [
               "Длина: 5",
-              "Прямой: 10 20 30 40 50",
-              "Обратный: 50 40 30 20 10",
+              "Прямой: 10 20 30 40 50|10, 20, 30, 40, 50|10 20 30 40 50",
+              "Обратный: 50 40 30 20 10|50, 40, 30, 20, 10|50 40 30 20 10",
             ],
           },
         ],
@@ -1335,12 +1335,12 @@ public class Main {
         tests: [
           {
             label: "Победа в первой строке",
-            stdin: "X X X O X O O O X\n",
+            stdin: "X X X\nO X O\nO O X\n",
             expected: ["Победа крестиков по горизонтали: ДА|ДА|Да|да|true"],
           },
           {
             label: "Нет победы в строках",
-            stdin: "X O X O X O O X O\n",
+            stdin: "X O X\nO X O\nO X O\n",
             expected: ["Победа крестиков по горизонтали: НЕТ|НЕТ|Нет|нет|false"],
           },
         ],
@@ -1592,8 +1592,8 @@ public class Main {
             label: "5 4 3 2 1 (10 перестановок)",
             stdin: "5\n4\n3\n2\n1\n",
             expected: [
-              "Отсортировано: [1, 2, 3, 4, 5]",
-              "Число перестановок: 10",
+              "Отсортировано: [1, 2, 3, 4, 5]|1, 2, 3, 4, 5|1 2 3 4 5",
+              "Число перестановок: 10|10",
             ],
           },
         ],

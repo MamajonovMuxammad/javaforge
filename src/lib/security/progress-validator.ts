@@ -59,7 +59,7 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
       new Set(
         (Array.isArray(rawStats.scannerDays) ? rawStats.scannerDays : [])
           .map(Number)
-          .filter((d) => Number.isInteger(d) && d >= 0 && d <= 70)
+          .filter((d) => Number.isInteger(d) && d >= 0 && d <= 120)
       )
     ),
   };
@@ -121,7 +121,7 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
   const completedAt: Record<string, string> = {};
   for (const [key, val] of Object.entries(rawCompletedAt)) {
     const dayNum = Number(key);
-    if (Number.isInteger(dayNum) && dayNum >= 0 && dayNum <= 70 && typeof val === "string") {
+    if (Number.isInteger(dayNum) && dayNum >= 0 && dayNum <= 120 && typeof val === "string") {
       completedAt[key] = val.slice(0, 32);
     }
   }

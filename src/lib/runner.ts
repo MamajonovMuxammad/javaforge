@@ -44,7 +44,7 @@ export function stripPrompts(stdout: string): string {
     .split("\n")
     .map((line) =>
       line.replace(
-        /(?:^|\b)(?:введите|enter|input|укажите|введи|напишите|дайте|скажите|число)[^:\n]*[:?]?\s*/gi,
+        /(?:^|\s)(?:введите|enter|input|укажите|введи|напишите|дайте|скажите)[^:\n]*[:?]?\s*/gi,
         ""
       )
     )
@@ -60,7 +60,7 @@ export function normalizeText(text: string): string {
     .replace(/[ \t]+/g, " ")
     .replace(/ё/g, "е")
     .replace(/[«»“”]/g, '"')
-    .replace(/\s*[:=\-—–]\s*/g, ": ")
+    .replace(/\s*(?:[:=—–]|-(?!\d))\s*/g, ": ")
     .replace(/,([^\s\d])/g, ", $1")
     .split("\n")
     .map((line) => line.trim().replace(/[!?.]$/, ""))
@@ -201,20 +201,31 @@ export function evaluateOutput(test: TestCase, stdout: string): string[] {
 export async function checkTaskSolution(task: { tests: TestCase[]; requiredCode?: CodeRequirement[] }, code: string): Promise<CheckOutcome> {
   const requirementErrors = checkRequirements(task, code);
 
-  const tests = await Promise.all(
-    task.tests.map(async (test): Promise<TestOutcome> => {
-      try {
-        const result = await runJava(code, test.stdin ?? "");
-        if (result.status !== "success") {
-          return { test, passed: false, missing: [], result };
-        }
-        const missing = evaluateOutput(test, result.stdout);
-        return { test, passed: missing.length === 0, missing, result };
-      } catch (err) {
-        return { test, passed: false, missing: [], error: (err as Error).message };
+  const tests: TestOutcome[] = [];
+  let compileErrorResult: RunResult | null = null;
+
+  for (const test of task.tests) {
+    if (compileErrorResult) {
+      tests.push({ test, passed: false, missing: [], result: compileErrorResult });
+      continue;
+    }
+    try {
+      const result = await runJava(code, test.stdin ?? "");
+      if (result.status === "compile_error") {
+        compileErrorResult = result;
+        tests.push({ test, passed: false, missing: [], result });
+        continue;
       }
-    }),
-  );
+      if (result.status !== "success") {
+        tests.push({ test, passed: false, missing: [], result });
+        continue;
+      }
+      const missing = evaluateOutput(test, result.stdout);
+      tests.push({ test, passed: missing.length === 0, missing, result });
+    } catch (err) {
+      tests.push({ test, passed: false, missing: [], error: (err as Error).message });
+    }
+  }
 
   return {
     passed: requirementErrors.length === 0 && tests.every((t) => t.passed),

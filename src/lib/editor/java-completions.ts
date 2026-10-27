@@ -623,6 +623,21 @@ function inferTargetType(code: string, targetName: string): string {
   if (targetName === "Double") return "DoubleClass";
   if (targetName === "Character") return "CharacterClass";
 
+  // Check extracted code symbols first for exact declared type
+  const symbols = extractCodeSymbols(code, Number.MAX_SAFE_INTEGER, 1);
+  const foundSymbol = symbols.find((s) => s.name === targetName);
+  if (foundSymbol) {
+    const dt = foundSymbol.type.trim();
+    if (dt.endsWith("[]")) return "Array";
+    if (dt.startsWith("Scanner")) return "Scanner";
+    if (dt.startsWith("String")) return "String";
+    if (dt.startsWith("List") || dt.startsWith("ArrayList") || dt.startsWith("LinkedList")) return "List";
+    if (dt.startsWith("Map") || dt.startsWith("HashMap") || dt.startsWith("TreeMap") || dt.startsWith("LinkedHashMap")) return "Map";
+    if (dt.startsWith("Set") || dt.startsWith("HashSet") || dt.startsWith("TreeSet")) return "Set";
+    if (dt.startsWith("StringBuilder") || dt.startsWith("StringBuffer")) return "StringBuilder";
+    if (dt.startsWith("PrintStream")) return "PrintStream";
+  }
+
   // Common naming heuristics
   if (t === "out" || t.endsWith(".out")) return "PrintStream";
   if (t.includes("scanner") || t === "sc" || t === "in" || t === "input") return "Scanner";
@@ -650,8 +665,13 @@ function inferTargetType(code: string, targetName: string): string {
     return "Set";
   }
 
-  // Scan code for variable declaration: `Type varName` or `Type<...> varName`
+  // Scan code for variable declaration: `Type varName` or `Type<...> varName` or `type[] varName`
   const esc = targetName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const arrayDeclRegex = new RegExp(`\\b(?:byte|short|int|long|float|double|boolean|char|[A-Z][a-zA-Z0-9_<>]*)\\s*(?:\\[\\s*\\])+\\s+${esc}\\b|\\b(?:byte|short|int|long|float|double|boolean|char|[A-Z][a-zA-Z0-9_<>]*)\\s+${esc}\\s*\\[\\s*\\]`);
+  if (arrayDeclRegex.test(code)) {
+    return "Array";
+  }
+
   const declRegex = new RegExp(`\\b([A-Z][a-zA-Z0-9_<>]*)\\s+${esc}\\b`);
   const match = code.match(declRegex);
   if (match) {
@@ -666,6 +686,417 @@ function inferTargetType(code: string, targetName: string): string {
   }
 
   return "Unknown";
+}
+
+const JAVA_RESERVED_WORDS = new Set([
+  "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
+  "class", "const", "continue", "default", "do", "double", "else", "enum",
+  "extends", "false", "final", "finally", "float", "for", "goto", "if",
+  "implements", "import", "instanceof", "int", "interface", "long", "native",
+  "new", "null", "package", "private", "protected", "public", "record",
+  "return", "short", "static", "strictfp", "super", "switch", "synchronized",
+  "this", "throw", "throws", "transient", "true", "try", "var", "void",
+  "volatile", "while", "yield",
+]);
+
+const NON_TYPE_KEYWORDS = new Set([
+  "return", "case", "throw", "throws", "new", "import", "package", "class",
+  "interface", "enum", "record", "extends", "implements", "if", "else",
+  "for", "while", "do", "switch", "try", "catch", "finally", "break",
+  "continue", "goto", "const", "assert", "instanceof",
+]);
+
+export interface ExtractedSymbol {
+  name: string;
+  kind: "variable" | "parameter" | "constant" | "method" | "class";
+  type: string;
+  value?: string;
+  line: number;
+  signature?: string;
+  insertText?: string;
+  isSnippet?: boolean;
+  doc?: string;
+}
+
+/**
+ * Strips single-line and multi-line comments while preserving exact line breaks and character offsets.
+ */
+function stripCommentsPreservingLayout(code: string): string {
+  const chars = code.split("");
+  let inString = false;
+  let inChar = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    const next = chars[i + 1];
+
+    if (inLineComment) {
+      if (ch === "\n") {
+        inLineComment = false;
+      } else if (ch !== "\r") {
+        chars[i] = " ";
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (ch === "*" && next === "/") {
+        chars[i] = " ";
+        chars[i + 1] = " ";
+        i++;
+        inBlockComment = false;
+      } else if (ch !== "\n" && ch !== "\r") {
+        chars[i] = " ";
+      }
+      continue;
+    }
+
+    if (inString) {
+      if (ch === "\\" && i + 1 < chars.length) {
+        i++;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (inChar) {
+      if (ch === "\\" && i + 1 < chars.length) {
+        i++;
+      } else if (ch === "'") {
+        inChar = false;
+      }
+      continue;
+    }
+
+    if (ch === "/" && next === "/") {
+      chars[i] = " ";
+      chars[i + 1] = " ";
+      i++;
+      inLineComment = true;
+    } else if (ch === "/" && next === "*") {
+      chars[i] = " ";
+      chars[i + 1] = " ";
+      i++;
+      inBlockComment = true;
+    } else if (ch === '"') {
+      inString = true;
+    } else if (ch === "'") {
+      inChar = true;
+    }
+  }
+
+  return chars.join("");
+}
+
+/**
+ * Splits a string by top-level delimiter (e.g. `,` or `;`), ignoring delimiters inside `()`, `[]`, `{}`, `<>`, or quotes.
+ */
+function splitTopLevel(input: string, delimiter: string): Array<{ text: string; startOffset: number; endOffset: number }> {
+  const result: Array<{ text: string; startOffset: number; endOffset: number }> = [];
+  let depthParen = 0;
+  let depthBracket = 0;
+  let depthBrace = 0;
+  let depthAngle = 0;
+  let inString = false;
+  let inChar = false;
+  let start = 0;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (inString) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (inChar) {
+      if (ch === "\\") i++;
+      else if (ch === "'") inChar = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === "'") {
+      inChar = true;
+    } else if (ch === "(") {
+      depthParen++;
+    } else if (ch === ")") {
+      depthParen = Math.max(0, depthParen - 1);
+    } else if (ch === "[") {
+      depthBracket++;
+    } else if (ch === "]") {
+      depthBracket = Math.max(0, depthBracket - 1);
+    } else if (ch === "{") {
+      depthBrace++;
+    } else if (ch === "}") {
+      depthBrace = Math.max(0, depthBrace - 1);
+    } else if (ch === "<") {
+      depthAngle++;
+    } else if (ch === ">") {
+      depthAngle = Math.max(0, depthAngle - 1);
+    } else if (
+      ch === delimiter &&
+      depthParen === 0 &&
+      depthBracket === 0 &&
+      depthBrace === 0 &&
+      depthAngle === 0
+    ) {
+      result.push({ text: input.slice(start, i), startOffset: start, endOffset: i });
+      start = i + 1;
+    }
+  }
+
+  result.push({ text: input.slice(start), startOffset: start, endOffset: input.length });
+  return result;
+}
+
+/**
+ * Extracts all user-declared variables, constants, parameters, methods, and classes from the current Java code.
+ */
+export function extractCodeSymbols(
+  code: string,
+  cursorLine: number,
+  cursorColumn: number
+): ExtractedSymbol[] {
+  const cleanCode = stripCommentsPreservingLayout(code);
+  const lines = cleanCode.split("\n");
+  const symbolMap = new Map<string, ExtractedSymbol>();
+
+  const addSymbol = (sym: ExtractedSymbol) => {
+    if (!sym.name || JAVA_RESERVED_WORDS.has(sym.name)) return;
+    const existing = symbolMap.get(sym.name);
+    // Prefer declarations closer to or above the cursor, or upgrade with initial value
+    if (!existing || (sym.line <= cursorLine && sym.line >= existing.line)) {
+      symbolMap.set(sym.name, {
+        ...existing,
+        ...sym,
+        value: sym.value ?? existing?.value,
+      });
+    }
+  };
+
+  for (let idx = 0; idx < lines.length; idx++) {
+    const lineNum = idx + 1;
+    const rawLine = lines[idx];
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("import ") || trimmed.startsWith("package ") || trimmed.startsWith("@")) {
+      continue;
+    }
+
+    // 1. User-defined classes / interfaces / enums / records
+    const classMatch = trimmed.match(/\b(class|interface|enum|record)\s+([A-Z][a-zA-Z0-9_$]*)\b/);
+    if (classMatch) {
+      const kindWord = classMatch[1];
+      const className = classMatch[2];
+      if (className !== "Main") {
+        addSymbol({
+          name: className,
+          kind: "class",
+          type: kindWord,
+          line: lineNum,
+          doc: `Объявленный в коде ${kindWord} ${className} (строка ${lineNum}).`,
+        });
+      }
+    }
+
+    // 2. Method declarations & their parameters
+    const methodMatch = trimmed.match(
+      /^(?:(?:public|private|protected|static|final|synchronized|abstract|default|native)\s+)*((?:byte|short|int|long|float|double|boolean|char|void|[A-Z][a-zA-Z0-9_$]*(?:\s*<[^{};()]*?>)?)(?:\s*\[\s*\])*)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(([^)]*)\)/
+    );
+    if (methodMatch && !NON_TYPE_KEYWORDS.has(methodMatch[1]) && !JAVA_RESERVED_WORDS.has(methodMatch[2])) {
+      const returnType = methodMatch[1].replace(/\s+/g, " ").trim();
+      const methodName = methodMatch[2];
+      const paramsRaw = methodMatch[3].trim();
+
+      const paramParts = paramsRaw ? splitTopLevel(paramsRaw, ",") : [];
+      const paramNames: string[] = [];
+
+      for (const part of paramParts) {
+        const pTrim = part.text.trim();
+        if (!pTrim) continue;
+        const pMatch = pTrim.match(
+          /^(?:final\s+)?((?:byte|short|int|long|float|double|boolean|char|[A-Z][a-zA-Z0-9_$]*(?:\s*<[^>]*>)?)(?:\s*\[\s*\])*(?:\s*\.\.\.)?)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*\[\s*\])*$/
+        );
+        if (pMatch) {
+          const pType = (pMatch[1] + (pMatch[3] || "")).replace(/\s+/g, " ").trim();
+          const pName = pMatch[2];
+          paramNames.push(pName);
+          if (!(lineNum === cursorLine && rawLine.indexOf(pName) <= cursorColumn && cursorColumn <= rawLine.indexOf(pName) + pName.length + 1)) {
+            addSymbol({
+              name: pName,
+              kind: "parameter",
+              type: pType,
+              line: lineNum,
+              doc: `Параметр метода ${methodName} типа ${pType} (строка ${lineNum}).`,
+            });
+          }
+        }
+      }
+
+      if (methodName !== "main") {
+        const snippetArgs = paramNames.map((p, i) => `\${${i + 1}:${p}}`).join(", ");
+        addSymbol({
+          name: methodName,
+          kind: "method",
+          type: returnType,
+          line: lineNum,
+          signature: `${returnType} ${methodName}(${paramsRaw})`,
+          insertText: paramNames.length > 0 ? `${methodName}(${snippetArgs})` : `${methodName}()`,
+          isSnippet: paramNames.length > 0,
+          doc: `Метод ${methodName}, объявленный в файле (строка ${lineNum}).`,
+        });
+      }
+      continue;
+    }
+
+    // 3. Enhanced for-each loop: `for (Type item : collection)`
+    const forEachMatch = trimmed.match(
+      /\bfor\s*\(\s*(?:final\s+)?((?:byte|short|int|long|float|double|boolean|char|var|[A-Z][a-zA-Z0-9_$]*(?:\s*<[^>]*>)?)(?:\s*\[\s*\])*)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:\s*([^)]+)\)/
+    );
+    if (forEachMatch) {
+      const vType = forEachMatch[1].replace(/\s+/g, " ").trim();
+      const vName = forEachMatch[2];
+      const iterable = forEachMatch[3].trim();
+      if (lineNum !== cursorLine) {
+        addSymbol({
+          name: vName,
+          kind: "variable",
+          type: vType,
+          value: `из ${iterable}`,
+          line: lineNum,
+          doc: `Переменная цикла for-each типа ${vType} (строка ${lineNum}).`,
+        });
+      }
+      continue;
+    }
+
+    // 4. Classic for loop: `for (int i = 0, j = 10; i < n; i++)`
+    const forInitMatch = trimmed.match(
+      /\bfor\s*\(\s*(?:final\s+)?((?:byte|short|int|long|float|double|boolean|char|var|[A-Z][a-zA-Z0-9_$]*(?:\s*<[^>]*>)?)(?:\s*\[\s*\])*)\s+([^;:]+);/
+    );
+    if (forInitMatch) {
+      const vType = forInitMatch[1].replace(/\s+/g, " ").trim();
+      const decls = splitTopLevel(forInitMatch[2], ",");
+      for (const d of decls) {
+        const dm = d.text.trim().match(/^([a-zA-Z_$][a-zA-Z0-9_$]*)(?:\s*=\s*(.+))?$/);
+        if (dm) {
+          addSymbol({
+            name: dm[1],
+            kind: "variable",
+            type: vType,
+            value: dm[2]?.trim(),
+            line: lineNum,
+            doc: `Индексная переменная цикла for типа ${vType} (строка ${lineNum}).`,
+          });
+        }
+      }
+      continue;
+    }
+
+    // 5. Catch block parameter: `catch (Exception e)`
+    const catchMatch = trimmed.match(
+      /\bcatch\s*\(\s*(?:final\s+)?([A-Za-z0-9_$|.\s]+?)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\)/
+    );
+    if (catchMatch) {
+      const excType = catchMatch[1].trim();
+      const excName = catchMatch[2];
+      if (lineNum !== cursorLine) {
+        addSymbol({
+          name: excName,
+          kind: "parameter",
+          type: excType,
+          line: lineNum,
+          doc: `Переменная исключения типа ${excType} (строка ${lineNum}).`,
+        });
+      }
+      continue;
+    }
+
+    // 6. Standard variable / constant / field declarations (supports single and comma-separated multi-declarations)
+    const statements = splitTopLevel(rawLine, ";");
+    for (const stmt of statements) {
+      // On the current cursor line, do not extract variables from the statement the user is actively editing
+      // unless there are comma-separated declarators declared fully to the left of the cursor.
+      const stmtStartCol = stmt.startOffset + 1;
+      const stmtEndCol = stmt.endOffset + 1;
+      const cursorInStmt = lineNum === cursorLine && cursorColumn >= stmtStartCol && cursorColumn <= stmtEndCol + 1;
+
+      const cleanedStmt = stmt.text.replace(/^[{}()\s]+/, "");
+      const leadingOffsetInStmt = stmt.text.length - cleanedStmt.length;
+
+      const modMatch = cleanedStmt.match(
+        /^((?:(?:public|private|protected|static|final|volatile|transient)\s+)*)((?:byte|short|int|long|float|double|boolean|char|var|[A-Z][a-zA-Z0-9_$]*(?:\.[A-Z][a-zA-Z0-9_$]*)*)(?:\s*<[^{};=()]*?>)?(?:\s*\[\s*\])*)\s+(.+)$/
+      );
+      if (!modMatch) continue;
+
+      const modifiers = modMatch[1] || "";
+      const isFinal = /\bfinal\b/.test(modifiers);
+      const baseType = modMatch[2].replace(/\s+/g, " ").trim();
+      const restDecls = modMatch[3];
+
+      if (NON_TYPE_KEYWORDS.has(baseType)) continue;
+
+      const prefixLen = modMatch[0].length - restDecls.length;
+      const declParts = splitTopLevel(restDecls, ",");
+
+      for (const declPart of declParts) {
+        const partStartCol = stmtStartCol + leadingOffsetInStmt + prefixLen + declPart.startOffset;
+        const partEndCol = stmtStartCol + leadingOffsetInStmt + prefixLen + declPart.endOffset;
+
+        // Skip the declarator currently being edited at the cursor so `long time = dis` does not suggest `time` or `dis`
+        if (cursorInStmt && cursorColumn >= partStartCol) {
+          continue;
+        }
+
+        const dTrim = declPart.text.trim();
+        const varMatch = dTrim.match(
+          /^([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*\[\s*\])*(?:\s*=\s*(.+))?$/
+        );
+        if (!varMatch) continue;
+
+        const varName = varMatch[1];
+        const extraBrackets = (varMatch[2] || "").replace(/\s+/g, "");
+        const initValue = varMatch[3]?.trim();
+
+        if (JAVA_RESERVED_WORDS.has(varName)) continue;
+
+        let resolvedType = baseType + extraBrackets;
+        if (resolvedType === "var" && initValue) {
+          if (/^".*"$/.test(initValue)) resolvedType = "var (String)";
+          else if (/^'.*'$/.test(initValue)) resolvedType = "var (char)";
+          else if (/^(true|false)$/.test(initValue)) resolvedType = "var (boolean)";
+          else if (/^-?\d+[lL]$/.test(initValue)) resolvedType = "var (long)";
+          else if (/^-?\d+\.\d+[fF]$/.test(initValue)) resolvedType = "var (float)";
+          else if (/^-?\d+\.\d+([dD])?$/.test(initValue)) resolvedType = "var (double)";
+          else if (/^-?\d+$/.test(initValue)) resolvedType = "var (int)";
+        }
+
+        addSymbol({
+          name: varName,
+          kind: isFinal ? "constant" : "variable",
+          type: resolvedType,
+          value: initValue,
+          line: lineNum,
+          doc: `${isFinal ? "Константа" : "Переменная"} типа ${resolvedType} (строка ${lineNum})${
+            initValue ? `\nЗначение: ${initValue}` : ""
+          }`,
+        });
+
+        // Suppress unused warning for partEndCol
+        void partEndCol;
+      }
+    }
+  }
+
+  // Sort symbols so variables declared closest above cursorLine come first
+  return Array.from(symbolMap.values()).sort((a, b) => {
+    const aAbove = a.line <= cursorLine ? 0 : 1;
+    const bAbove = b.line <= cursorLine ? 0 : 1;
+    if (aAbove !== bAbove) return aAbove - bAbove;
+    return Math.abs(cursorLine - a.line) - Math.abs(cursorLine - b.line);
+  });
 }
 
 /**
@@ -786,6 +1217,150 @@ export function registerJavaCompletions(monaco: any): void {
         const targetName = targetMatch ? targetMatch[1] : "";
         const targetType = inferTargetType(code, targetName);
 
+        if (targetType === "Array") {
+          return {
+            suggestions: [
+              {
+                label: "length",
+                kind: CompletionItemKind.Field,
+                insertText: "length",
+                detail: "final int length",
+                documentation: "Количество элементов в массиве (свойство массива, пишется без скобок).",
+                range,
+                sortText: "0_00",
+              },
+              {
+                label: "clone()",
+                kind: CompletionItemKind.Method,
+                insertText: "clone()",
+                detail: "T[] clone()",
+                documentation: "Создаёт поверхностную копию массива.",
+                range,
+                sortText: "0_01",
+              },
+            ],
+          };
+        }
+
+        if (targetType === "IntegerClass") {
+          return {
+            suggestions: [
+              {
+                label: "parseInt(s)",
+                kind: CompletionItemKind.Method,
+                insertText: "parseInt(${1:str})",
+                insertTextRules: InsertAsSnippet,
+                detail: "static int parseInt(String s)",
+                documentation: "Преобразует строку в целое число int.",
+                range,
+                sortText: "0_00",
+              },
+              {
+                label: "MAX_VALUE",
+                kind: CompletionItemKind.Constant,
+                insertText: "MAX_VALUE",
+                detail: "static final int MAX_VALUE = 2147483647",
+                documentation: "Максимальное значение типа int (2^31 - 1).",
+                range,
+                sortText: "0_01",
+              },
+              {
+                label: "MIN_VALUE",
+                kind: CompletionItemKind.Constant,
+                insertText: "MIN_VALUE",
+                detail: "static final int MIN_VALUE = -2147483648",
+                documentation: "Минимальное значение типа int (-2^31).",
+                range,
+                sortText: "0_02",
+              },
+              {
+                label: "toString(i)",
+                kind: CompletionItemKind.Method,
+                insertText: "toString(${1:num})",
+                insertTextRules: InsertAsSnippet,
+                detail: "static String toString(int i)",
+                documentation: "Преобразует число int в строку.",
+                range,
+                sortText: "0_03",
+              },
+            ],
+          };
+        }
+
+        if (targetType === "DoubleClass") {
+          return {
+            suggestions: [
+              {
+                label: "parseDouble(s)",
+                kind: CompletionItemKind.Method,
+                insertText: "parseDouble(${1:str})",
+                insertTextRules: InsertAsSnippet,
+                detail: "static double parseDouble(String s)",
+                documentation: "Преобразует строку в вещественное число double.",
+                range,
+                sortText: "0_00",
+              },
+              {
+                label: "isNaN(v)",
+                kind: CompletionItemKind.Method,
+                insertText: "isNaN(${1:val})",
+                insertTextRules: InsertAsSnippet,
+                detail: "static boolean isNaN(double v)",
+                documentation: "Проверяет, является ли значение NaN (Not-a-Number).",
+                range,
+                sortText: "0_01",
+              },
+            ],
+          };
+        }
+
+        if (targetType === "CharacterClass") {
+          return {
+            suggestions: [
+              {
+                label: "isDigit(ch)",
+                kind: CompletionItemKind.Method,
+                insertText: "isDigit(${1:ch})",
+                insertTextRules: InsertAsSnippet,
+                detail: "static boolean isDigit(char ch)",
+                documentation: "Проверяет, является ли символ цифрой.",
+                range,
+                sortText: "0_00",
+              },
+              {
+                label: "isLetter(ch)",
+                kind: CompletionItemKind.Method,
+                insertText: "isLetter(${1:ch})",
+                insertTextRules: InsertAsSnippet,
+                detail: "static boolean isLetter(char ch)",
+                documentation: "Проверяет, является ли символ буквой.",
+                range,
+                sortText: "0_01",
+              },
+              {
+                label: "toLowerCase(ch)",
+                kind: CompletionItemKind.Method,
+                insertText: "toLowerCase(${1:ch})",
+                insertTextRules: InsertAsSnippet,
+                detail: "static char toLowerCase(char ch)",
+                documentation: "Переводит символ в нижний регистр.",
+                range,
+                sortText: "0_02",
+              },
+              {
+                label: "toUpperCase(ch)",
+                kind: CompletionItemKind.Method,
+                insertText: "toUpperCase(${1:ch})",
+                insertTextRules: InsertAsSnippet,
+                detail: "static char toUpperCase(char ch)",
+                documentation: "Переводит символ в верхний регистр.",
+                range,
+                sortText: "0_03",
+              },
+            ],
+          };
+        }
+
         let methodList: MethodDef[] = [];
 
         if (targetType === "Scanner") {
@@ -800,7 +1375,7 @@ export function registerJavaCompletions(monaco: any): void {
           methodList = ARRAYS_METHODS;
         } else if (targetType === "Collections") {
           methodList = COLLECTIONS_METHODS;
-        } else if (targetType === "List") {
+        } else if (targetType === "List" || targetType === "Set") {
           methodList = LIST_METHODS;
         } else if (targetType === "Map") {
           methodList = MAP_METHODS;
@@ -808,7 +1383,6 @@ export function registerJavaCompletions(monaco: any): void {
           methodList = STRING_BUILDER_METHODS;
         } else {
           // Fallback when type is generic or unknown: provide union of Scanner + String + common methods!
-          // This guarantees that typing `scanner.` or `str.` or `x.` ALWAYS offers the most helpful methods!
           methodList = [
             ...SCANNER_METHODS.slice(0, 4),
             ...STRING_METHODS.slice(0, 6),
@@ -841,6 +1415,82 @@ export function registerJavaCompletions(monaco: any): void {
           })),
         };
       }
+
+      // Avoid auto-popping suggestions when the user just typed a space after a type/modifier to name a new variable
+      if (
+        word.word === "" &&
+        /\b(?:byte|short|int|long|float|double|boolean|char|var|void|String|Scanner|class|interface|enum|record|public|private|protected|static|final)\s+$/.test(
+          lineUntilPos
+        )
+      ) {
+        return { suggestions: [] };
+      }
+
+      // Extract user-defined variables, constants, parameters, methods, and classes from current code
+      const extractedSymbols = extractCodeSymbols(code, position.lineNumber, position.column);
+      const userSymbolSuggestions = extractedSymbols.map((sym, idx) => {
+        const priorityPrefix = `00_${String(idx).padStart(3, "0")}_${sym.name}`;
+
+        if (sym.kind === "method") {
+          return {
+            label: sym.signature ? `${sym.name}(...)` : `${sym.name}()`,
+            filterText: sym.name,
+            kind: CompletionItemKind.Method,
+            insertText: sym.insertText || `${sym.name}()`,
+            ...(sym.isSnippet ? { insertTextRules: InsertAsSnippet } : {}),
+            detail: sym.signature || `${sym.type} ${sym.name}()`,
+            documentation: sym.doc,
+            sortText: priorityPrefix,
+            range,
+          };
+        }
+
+        if (sym.kind === "class") {
+          return {
+            label: sym.name,
+            kind: CompletionItemKind.Class,
+            insertText: sym.name,
+            detail: `${sym.type} ${sym.name}`,
+            documentation: sym.doc,
+            sortText: priorityPrefix,
+            range,
+          };
+        }
+
+        if (sym.kind === "constant") {
+          return {
+            label: sym.name,
+            kind: CompletionItemKind.Constant,
+            insertText: sym.name,
+            detail: sym.value ? `final ${sym.type} = ${sym.value}` : `final ${sym.type}`,
+            documentation: sym.doc,
+            sortText: priorityPrefix,
+            range,
+          };
+        }
+
+        if (sym.kind === "parameter") {
+          return {
+            label: sym.name,
+            kind: CompletionItemKind.Variable,
+            insertText: sym.name,
+            detail: `${sym.type} ${sym.name} (параметр)`,
+            documentation: sym.doc,
+            sortText: priorityPrefix,
+            range,
+          };
+        }
+
+        return {
+          label: sym.name,
+          kind: CompletionItemKind.Variable,
+          insertText: sym.name,
+          detail: sym.value ? `${sym.type} = ${sym.value}` : sym.type,
+          documentation: sym.doc,
+          sortText: priorityPrefix,
+          range,
+        };
+      });
 
       // CASE B: Top-level expressions, IntelliJ Live Templates & keywords
       const templates: any[] = [
@@ -1033,25 +1683,30 @@ export function registerJavaCompletions(monaco: any): void {
         },
 
         // Java Keywords & Primitives
-        { label: "int", kind: CompletionItemKind.Keyword, insertText: "int", detail: "32-bit signed integer", range },
-        { label: "double", kind: CompletionItemKind.Keyword, insertText: "double", detail: "64-bit IEEE 754 floating point", range },
-        { label: "boolean", kind: CompletionItemKind.Keyword, insertText: "boolean", detail: "true or false", range },
-        { label: "char", kind: CompletionItemKind.Keyword, insertText: "char", detail: "16-bit Unicode character", range },
-        { label: "long", kind: CompletionItemKind.Keyword, insertText: "long", detail: "64-bit signed integer", range },
-        { label: "float", kind: CompletionItemKind.Keyword, insertText: "float", detail: "32-bit floating point", range },
-        { label: "void", kind: CompletionItemKind.Keyword, insertText: "void", detail: "Specifies that method does not return a value", range },
-        { label: "public", kind: CompletionItemKind.Keyword, insertText: "public ", detail: "Access modifier", range },
-        { label: "private", kind: CompletionItemKind.Keyword, insertText: "private ", detail: "Access modifier", range },
-        { label: "protected", kind: CompletionItemKind.Keyword, insertText: "protected ", detail: "Access modifier", range },
-        { label: "static", kind: CompletionItemKind.Keyword, insertText: "static ", detail: "Belongs to the class, not instances", range },
-        { label: "final", kind: CompletionItemKind.Keyword, insertText: "final ", detail: "Cannot be modified or inherited", range },
-        { label: "class", kind: CompletionItemKind.Keyword, insertText: "class ", detail: "Class declaration", range },
-        { label: "return", kind: CompletionItemKind.Keyword, insertText: "return ", detail: "Return from method", range },
-        { label: "new", kind: CompletionItemKind.Keyword, insertText: "new ", detail: "Instantiates an object", range },
-        { label: "import java.util.Scanner;", kind: CompletionItemKind.Snippet, insertText: "import java.util.Scanner;\n", detail: "Import Scanner", range },
+        { label: "int", kind: CompletionItemKind.Keyword, insertText: "int", detail: "32-bit signed integer", sortText: "2_01", range },
+        { label: "double", kind: CompletionItemKind.Keyword, insertText: "double", detail: "64-bit IEEE 754 floating point", sortText: "2_02", range },
+        { label: "boolean", kind: CompletionItemKind.Keyword, insertText: "boolean", detail: "true or false", sortText: "2_03", range },
+        { label: "char", kind: CompletionItemKind.Keyword, insertText: "char", detail: "16-bit Unicode character", sortText: "2_04", range },
+        { label: "long", kind: CompletionItemKind.Keyword, insertText: "long", detail: "64-bit signed integer", sortText: "2_05", range },
+        { label: "float", kind: CompletionItemKind.Keyword, insertText: "float", detail: "32-bit floating point", sortText: "2_06", range },
+        { label: "byte", kind: CompletionItemKind.Keyword, insertText: "byte", detail: "8-bit signed integer", sortText: "2_07", range },
+        { label: "short", kind: CompletionItemKind.Keyword, insertText: "short", detail: "16-bit signed integer", sortText: "2_08", range },
+        { label: "void", kind: CompletionItemKind.Keyword, insertText: "void", detail: "Specifies that method does not return a value", sortText: "2_09", range },
+        { label: "public", kind: CompletionItemKind.Keyword, insertText: "public ", detail: "Access modifier", sortText: "2_10", range },
+        { label: "private", kind: CompletionItemKind.Keyword, insertText: "private ", detail: "Access modifier", sortText: "2_11", range },
+        { label: "protected", kind: CompletionItemKind.Keyword, insertText: "protected ", detail: "Access modifier", sortText: "2_12", range },
+        { label: "static", kind: CompletionItemKind.Keyword, insertText: "static ", detail: "Belongs to the class, not instances", sortText: "2_13", range },
+        { label: "final", kind: CompletionItemKind.Keyword, insertText: "final ", detail: "Cannot be modified or inherited", sortText: "2_14", range },
+        { label: "class", kind: CompletionItemKind.Keyword, insertText: "class ", detail: "Class declaration", sortText: "2_15", range },
+        { label: "return", kind: CompletionItemKind.Keyword, insertText: "return ", detail: "Return from method", sortText: "2_16", range },
+        { label: "new", kind: CompletionItemKind.Keyword, insertText: "new ", detail: "Instantiates an object", sortText: "2_17", range },
+        { label: "true", kind: CompletionItemKind.Keyword, insertText: "true", detail: "boolean literal", sortText: "2_18", range },
+        { label: "false", kind: CompletionItemKind.Keyword, insertText: "false", detail: "boolean literal", sortText: "2_19", range },
+        { label: "null", kind: CompletionItemKind.Keyword, insertText: "null", detail: "null reference", sortText: "2_20", range },
+        { label: "import java.util.Scanner;", kind: CompletionItemKind.Snippet, insertText: "import java.util.Scanner;\n", detail: "Import Scanner", sortText: "2_21", range },
       ];
 
-      return { suggestions: templates };
+      return { suggestions: [...userSymbolSuggestions, ...templates] };
     },
   });
 
@@ -1062,6 +1717,26 @@ export function registerJavaCompletions(monaco: any): void {
       if (!word) return null;
 
       const w = word.word;
+
+      // Check user-declared symbols first so hovering over any variable/method shows its type and value
+      const symbols = extractCodeSymbols(model.getValue(), Number.MAX_SAFE_INTEGER, 1);
+      const userSym = symbols.find((s) => s.name === w);
+      if (userSym) {
+        const title =
+          userSym.kind === "method"
+            ? userSym.signature || `${userSym.type} ${userSym.name}()`
+            : userSym.kind === "constant"
+            ? `final ${userSym.type} ${userSym.name}${userSym.value ? ` = ${userSym.value}` : ""}`
+            : `${userSym.type} ${userSym.name}${userSym.value ? ` = ${userSym.value}` : ""}`;
+        return {
+          range: new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+          contents: [
+            { value: "```java\n" + title + "\n```" },
+            { value: userSym.doc || `Объявлено на строке ${userSym.line}` },
+          ],
+        };
+      }
+
       const hoverDocs: Record<string, { title: string; desc: string }> = {
         Scanner: {
           title: "java.util.Scanner",
@@ -1100,8 +1775,8 @@ export function registerJavaCompletions(monaco: any): void {
           desc: "Неизменяемый класс строк в Java. Строки хранятся в String Pool и сравниваются методом `.equals()`.",
         },
         length: {
-          title: "int length()",
-          desc: "Возвращает длину строки в символах.",
+          title: "int length() / int length",
+          desc: "Для строк `str.length()` возвращает длину в символах. Для массивов `arr.length` — количество элементов.",
         },
         charAt: {
           title: "char charAt(int index)",

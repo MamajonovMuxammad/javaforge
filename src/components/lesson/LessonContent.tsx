@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { Lesson, LessonTask, TheoryBlock, InterviewQA, Resource, ResourceKind } from "@/data/types";
-import { youtubeSearchUrl } from "@/data/curriculum";
+import { youtubeSearchUrl, TOTAL_DAYS, modules } from "@/data/curriculum";
 import { useProgress, isTaskCompleted, completedTasksForDay } from "@/lib/progress/store";
 import {
   Video,
@@ -27,6 +27,7 @@ import {
   BookMarked,
   Square,
   Layers,
+  Copy,
 } from "lucide-react";
 
 interface LessonContentProps {
@@ -573,9 +574,7 @@ export function LessonContent({
               <BookOpen className="h-6 w-6" />
             </div>
             <h3 className="text-sm font-semibold text-zinc-200">
-              {lesson.moduleId === 4
-                ? "Модуль 4: Базы данных, PostgreSQL, JDBC и Git"
-                : "Модуль 5: Spring Boot, REST API и Docker"}
+              {modules.find((m) => m.id === lesson.moduleId)?.title ?? "Продвинутый модуль"}
             </h3>
             <p className="mt-1.5 text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
               Продвинутый модуль бэкенд-разработки. Изучай рекомендованные видео-лекции ведущих авторов (Алишев, Заур Трегулов) по ссылкам выше и закрепляй знания в редакторе!
@@ -788,8 +787,42 @@ export function LessonContent({
             </button>
             {showSolution && (
               <div className="border-t border-white/5 p-4 bg-zinc-950">
-                <div className="text-[11px] text-zinc-400 mb-2">
-                  Попробуй сначала написать код самостоятельно. Если застрял — изучи решение ниже:
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                  <div className="text-[11px] text-zinc-400">
+                    Попробуй сначала написать код самостоятельно. Если застрял — изучи или примени решение:
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(solution);
+                      }}
+                      className="flex items-center gap-1 rounded-md border border-white/10 bg-zinc-900 hover:bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition"
+                      title="Скопировать авторское решение в буфер обмена"
+                    >
+                      <Copy className="h-3 w-3 text-zinc-400" />
+                      <span>Скопировать</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent("javaforge:apply-solution", {
+                            detail: {
+                              day: lesson.day,
+                              taskId: activeTask?.id,
+                              code: solution,
+                            },
+                          })
+                        );
+                      }}
+                      className="flex items-center gap-1 rounded-md border border-purple-500/30 bg-purple-500/15 hover:bg-purple-500/25 px-2.5 py-1 text-[11px] font-semibold text-purple-200 transition"
+                      title="Вставить авторское решение прямо в редактор кода"
+                    >
+                      <Code className="h-3 w-3 text-purple-300" />
+                      <span>Вставить в редактор</span>
+                    </button>
+                  </div>
                 </div>
                 <pre className="overflow-x-auto p-3 font-mono text-xs rounded-lg bg-zinc-900 border border-white/5 text-zinc-200">
                   <code>{solution}</code>
@@ -827,7 +860,7 @@ export function LessonContent({
         </button>
 
         <span className="text-xs font-mono text-zinc-500">
-          День {lesson.day} из 65
+          День {lesson.day} из {TOTAL_DAYS - 1}
         </span>
 
         <button

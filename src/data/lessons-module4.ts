@@ -403,7 +403,7 @@ public class Main {
         difficulty: "Средний",
         xp: 40,
         description:
-          "Создай метод `public static String getBmiStatus(double weightKg, double heightM)`.\nИндекс массы тела рассчитывается по формуле: `bmi = weightKg / (heightM * heightM)`.\n- Если `bmi < 18.5`, возвращается строка `\"Дефицит массы\"`\n- Если `bmi >= 18.5 && bmi < 25.0`, возвращается `\"Норма\"`\n- Иначе возвращается `\"Избыточная масса\"`\nВ `main` считай вес и рост и выведи статус.",
+          "Создай метод `public static String getBmiStatus(double weightKg, double heightM)`.\nИндекс массы тела рассчитывается по формуле: `bmi = weightKg / (heightM * heightM)`.\n- Если `bmi < 18.5`, возвращается строка `\"Дефицит массы\"`\n- Если `bmi >= 18.5 && bmi < 25.0`, возвращается `\"Норма\"`\n- Иначе возвращается `\"Избыточная масса\"`\nВ `main` считай вес и рост и выведи: `Статус ИМТ: <статус>`",
         requirements: [
           "Метод должен возвращать `String`.",
           "Выведи категорию ИМТ.",
@@ -426,8 +426,8 @@ public class Main {
 }
 `,
         tests: [
-          { label: "70 кг, 1.75 м (22.86 -> Норма)", stdin: "70.0\n1.75\n", expected: ["Статус ИМТ: Норма"] },
-          { label: "50 кг, 1.80 м (15.43 -> Дефицит)", stdin: "50.0\n1.80\n", expected: ["Статус ИМТ: Дефицит массы"] },
+          { label: "70 кг, 1.75 м (22.86 -> Норма)", stdin: "70.0\n1.75\n", expected: ["Статус ИМТ: Норма|Норма"] },
+          { label: "50 кг, 1.80 м (15.43 -> Дефицит)", stdin: "50.0\n1.80\n", expected: ["Статус ИМТ: Дефицит массы|Дефицит массы"] },
         ],
         hints: ["`double bmi = weightKg / (heightM * heightM);`"],
         solution: `import java.util.Scanner;
@@ -994,7 +994,7 @@ public class Main {
             ],
           },
         ],
-        requiredCode: [{ pattern: "countdown\\s*\\(\\s*n\\s*-\\s*1\\s*\\)", message: "Рекурсивно вызови countdown(n - 1)" }],
+        requiredCode: [{ pattern: "countdown\\s*\\(", message: "Рекурсивно вызови countdown(n - 1)" }],
         hints: ["`if (n <= 0) { System.out.println(\"Поехали!\"); return; }`"],
         solution: `import java.util.Scanner;
 
@@ -1049,7 +1049,7 @@ public class Main {
           { label: "5! = 120", stdin: "5\n", expected: ["Факториал 5! = 120"] },
           { label: "6! = 720", stdin: "6\n", expected: ["Факториал 6! = 720"] },
         ],
-        requiredCode: [{ pattern: "long\\s+factorial\\s*\\(", message: "Объяви long factorial(int n)" }],
+        requiredCode: [{ pattern: "(?:long|int)\\s+factorial\\s*\\(", message: "Объяви long factorial(int n)" }],
         hints: ["`if (n <= 1) return 1L; return n * factorial(n - 1);`"],
         solution: `import java.util.Scanner;
 

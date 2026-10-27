@@ -12,11 +12,11 @@ function error(message: string, status: number) {
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
-  const runLimit = checkRateLimit(`run-ip:${ip}`, { intervalSeconds: 60, maxRequests: 25 });
+  const runLimit = checkRateLimit(`run-ip:${ip}`, { intervalSeconds: 60, maxRequests: 120 });
   if (!runLimit.allowed) {
     return rateLimitResponse(
       runLimit.resetInSeconds,
-      `Лимит запусков кода превышен (максимум 25 запусков в минуту). Подождите ${runLimit.resetInSeconds} сек.`
+      `Лимит запусков кода превышен (максимум 120 запусков в минуту). Подождите ${runLimit.resetInSeconds} сек.`
     );
   }
 

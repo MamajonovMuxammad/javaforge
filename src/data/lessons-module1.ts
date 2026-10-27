@@ -214,8 +214,8 @@ System.out.println("3 + 3"); // Выведет: 3 + 3 (текст)`,
           },
         ],
         requiredCode: [
-          { pattern: "System\\.out\\.println", message: "Используй System.out.println" },
-          { pattern: "\\\\t", message: "Используй спецсимвол табуляции \\t" },
+          { pattern: "System\\.out\\.print", message: "Используй System.out.println" },
+          { pattern: "(\\\\t|\\t)", message: "Используй спецсимвол табуляции \\t" },
         ],
         hints: [
           "`System.out.println(\"--- Кафе \\\"JavaBean\\\" ---\");`",
@@ -1102,7 +1102,7 @@ System.out.println(b); // напечатает: -126 !`,
         difficulty: "Лёгкий",
         xp: 35,
         description:
-          "Объявлены переменные: `int totalSeconds = 3725; int a = 2, b = 3;`. Переведи секунды в часы, минуты и секунды, а затем выведи среднее арифметическое `a` и `b` как дробное число.",
+          "Объявлены переменные: `int totalSeconds = 3725; int a = 2, b = 3;`. Переведи секунды в часы, минуты и секунды, а затем выведи среднее арифметическое `a` и `b` как дробное число:\n`1 ч 2 мин 5 сек`\n`Среднее: 2.5`",
         requirements: [
           "Выведи `<ч> ч <м> мин <с> сек`.",
           "Выведи `Среднее: <значение>` — используй явное приведение `(double)`.",
@@ -1120,7 +1120,7 @@ System.out.println(b); // напечатает: -126 !`,
 }
 `,
         tests: [
-          { label: "3725 сек; 2 и 3", stdin: "3725\n2\n3\n", expected: ["1 ч 2 мин 5 сек|1ч 2мин 5сек", "Среднее: 2.5|2,5"] },
+          { label: "3725 сек; 2 и 3", stdin: "3725\n2\n3\n", expected: ["1 ч 2 мин 5 сек|1ч 2мин 5сек|1:2:5", "Среднее: 2.5|2,5|2.5"] },
         ],
         requiredCode: [{ pattern: "\\(\\s*double\\s*\\)", message: "Используй явное приведение типа (double)" }],
         hints: ["Часы: `totalSeconds / 3600`, минуты: `(totalSeconds % 3600) / 60`, секунды: `totalSeconds % 60`."],
