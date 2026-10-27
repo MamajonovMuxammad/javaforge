@@ -343,6 +343,99 @@ async function runWandbox(code: string, stdin: string): Promise<RunResult> {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Paiza.IO (Fast, stable, free, requires no API key)                 */
+/* ------------------------------------------------------------------ */
+
+async function runPaiza(code: string, stdin = ""): Promise<RunResult> {
+  const started = Date.now();
+  let createRes: Response;
+  try {
+    const params = new URLSearchParams({
+      source_code: code,
+      language: "java",
+      input: stdin,
+      api_key: "guest",
+    });
+    createRes = await fetch("https://api.paiza.io/runners/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+      signal: AbortSignal.timeout(15_000),
+      cache: "no-store",
+    });
+  } catch (err) {
+    throw new ProviderError(`Paiza unreachable: ${(err as Error).message}`);
+  }
+
+  if (!createRes.ok) {
+    throw new ProviderError(`Paiza HTTP ${createRes.status}`, createRes.status);
+  }
+
+  const createData = (await createRes.json()) as { id?: string; error?: string };
+  if (!createData.id) {
+    throw new ProviderError(`Paiza error: ${createData.error || "no run id"}`);
+  }
+
+  const id = createData.id;
+  // Poll until finished (typically takes 800 - 1500 ms)
+  for (let i = 0; i < 15; i++) {
+    await new Promise((r) => setTimeout(r, 600));
+    let detailRes: Response;
+    try {
+      detailRes = await fetch(`https://api.paiza.io/runners/get_details?id=${id}&api_key=guest`, {
+        signal: AbortSignal.timeout(10_000),
+        cache: "no-store",
+      });
+    } catch {
+      continue;
+    }
+
+    if (!detailRes.ok) continue;
+
+    const details = (await detailRes.json()) as {
+      status?: string;
+      build_result?: string;
+      build_stdout?: string;
+      build_stderr?: string;
+      result?: string;
+      stdout?: string;
+      stderr?: string;
+      exit_code?: number;
+    };
+
+    if (details.status === "completed") {
+      const timeMs = Date.now() - started;
+      if (details.build_result === "failure") {
+        return {
+          status: "compile_error",
+          stdout: "",
+          stderr: "",
+          compileOutput: truncate(details.build_stderr || details.build_stdout || "Ошибка компиляции javac"),
+          exitCode: 1,
+          provider: "paiza",
+          timeMs,
+        };
+      }
+
+      const isTimeout = details.result === "timeout";
+      const isRuntimeError = details.result === "failure";
+
+      return {
+        status: isTimeout ? "timeout" : isRuntimeError ? "runtime_error" : "success",
+        stdout: truncate(details.stdout ?? ""),
+        stderr: truncate(details.stderr ?? ""),
+        compileOutput: "",
+        exitCode: details.exit_code ?? (isRuntimeError ? 1 : 0),
+        provider: "paiza",
+        timeMs,
+      };
+    }
+  }
+
+  throw new ProviderError("Paiza timeout polling details");
+}
+
+/* ------------------------------------------------------------------ */
 /*  Public entry                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -350,6 +443,7 @@ export async function executeJava(code: string, stdin = ""): Promise<RunResult> 
   const mode = (process.env.JAVA_RUNNER ?? "auto").toLowerCase();
 
   if (mode === "local") return runLocalJava(code, stdin);
+  if (mode === "paiza") return runPaiza(code, stdin);
   if (mode === "wandbox") return runWandbox(code, stdin);
   if (mode === "piston") return runPiston(code, stdin);
 
@@ -363,7 +457,14 @@ export async function executeJava(code: string, stdin = ""): Promise<RunResult> 
     }
   }
 
-  // 2. Try Piston if unblocked
+  // 2. Try Paiza.io (fast cloud execution, ~1 sec, no key needed, rock-solid on Vercel)
+  try {
+    return await runPaiza(code, stdin);
+  } catch (err) {
+    console.warn(`[java-runner] Paiza runner failed, falling back: ${(err as Error).message}`);
+  }
+
+  // 3. Try Piston if unblocked
   if (Date.now() >= pistonBlockedUntil) {
     try {
       return await runPiston(code, stdin);
@@ -376,6 +477,6 @@ export async function executeJava(code: string, stdin = ""): Promise<RunResult> 
     }
   }
 
-  // 3. Fall back to Wandbox
+  // 4. Fall back to Wandbox
   return runWandbox(code, stdin);
 }
