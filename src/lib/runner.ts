@@ -206,12 +206,12 @@ export async function checkTaskSolution(task: { tests: TestCase[]; requiredCode?
       try {
         const result = await runJava(code, test.stdin ?? "");
         if (result.status !== "success") {
-          return { test, passed: false, missing: test.expected, result };
+          return { test, passed: false, missing: [], result };
         }
         const missing = evaluateOutput(test, result.stdout);
         return { test, passed: missing.length === 0, missing, result };
       } catch (err) {
-        return { test, passed: false, missing: test.expected, error: (err as Error).message };
+        return { test, passed: false, missing: [], error: (err as Error).message };
       }
     }),
   );

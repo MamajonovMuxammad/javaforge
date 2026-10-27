@@ -1070,14 +1070,34 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
                                     </pre>
                                   </div>
                                 )}
-                                {t.result?.status === "runtime_error" && t.result.stderr && (
+                                {t.error && (
+                                  <div className="rounded border border-rose-500/30 bg-rose-500/10 p-2 text-rose-300">
+                                    <div className="font-semibold text-rose-400 mb-1 flex items-center gap-1">
+                                      <AlertCircle className="h-3.5 w-3.5" />
+                                      <span>Ошибка сервиса запуска:</span>
+                                    </div>
+                                    <div className="text-[11px] opacity-90">{t.error}</div>
+                                  </div>
+                                )}
+                                {t.result?.status === "timeout" && (
+                                  <div className="rounded border border-amber-500/30 bg-amber-500/10 p-2 text-amber-300">
+                                    <div className="font-semibold text-amber-400 mb-1 flex items-center gap-1">
+                                      <AlertCircle className="h-3.5 w-3.5" />
+                                      <span>Превышено время ожидания (Timeout):</span>
+                                    </div>
+                                    <div className="text-[11px] opacity-90">
+                                      {t.result.stderr || "Программа выполнялась слишком долго (более 8 сек). Проверь бесконечные циклы или ожидание ввода."}
+                                    </div>
+                                  </div>
+                                )}
+                                {t.result?.status === "runtime_error" && (t.result.stderr || t.result.compileOutput) && (
                                   <div className="rounded border border-rose-500/30 bg-rose-500/10 p-2 text-rose-300">
                                     <div className="font-semibold text-rose-400 mb-1 flex items-center gap-1">
                                       <AlertCircle className="h-3.5 w-3.5" />
                                       <span>Исключение во время выполнения (Exception):</span>
                                     </div>
                                     <pre className="whitespace-pre-wrap text-[11px] font-mono opacity-90">
-                                      {t.result.stderr}
+                                      {t.result.stderr || t.result.compileOutput}
                                     </pre>
                                   </div>
                                 )}

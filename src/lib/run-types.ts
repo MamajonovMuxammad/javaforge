@@ -13,7 +13,7 @@ export interface RunResult {
   stderr: string;
   compileOutput: string;
   exitCode: number | null;
-  provider: "piston" | "wandbox";
+  provider: "local" | "piston" | "wandbox";
   timeMs: number;
 }
 
