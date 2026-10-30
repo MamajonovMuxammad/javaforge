@@ -68,6 +68,19 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
     // Otherwise dayNum is a locked future day (e.g., old migration ghost), so it is omitted.
   }
 
+  // Sanitize bonus practice tasks
+  const rawPractice = Array.isArray(rawTasks["practice"]) ? rawTasks["practice"] : [];
+  const cleanPracticeTasks = Array.from(
+    new Set(
+      rawPractice
+        .map((t) => String(t).trim())
+        .filter((t) => t.length > 0 && t.length <= 64)
+    )
+  );
+  if (cleanPracticeTasks.length > 0) {
+    completedTasks["practice"] = cleanPracticeTasks;
+  }
+
   const completedDays = Array.from(completedDaysSet).sort((a, b) => a - b);
 
   // 3. Base XP from completed days (50 XP for Day 0 intro, 100 XP per regular day)
@@ -75,11 +88,17 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
 
   // 4. Partial XP from uncompleted days that have completed tasks
   for (const [dayStr, cleanTaskIds] of Object.entries(completedTasks)) {
+    if (dayStr === "practice") continue;
     const dayNum = Number(dayStr);
     if (!completedDaysSet.has(dayNum)) {
       const partialXp = Math.min(cleanTaskIds.length * 35, 100);
       baseXp += partialXp;
     }
+  }
+
+  // 4b. Bonus XP from completed practice challenges (~30 XP average per task)
+  if (cleanPracticeTasks.length > 0) {
+    baseXp += cleanPracticeTasks.length * 30;
   }
 
   // 4. Sanitize stats

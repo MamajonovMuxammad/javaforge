@@ -129,6 +129,13 @@ export function LandingPage({
               Преимущества
             </a>
             <Link
+              href="/practice"
+              className="flex items-center gap-1.5 transition hover:text-orange-300 text-orange-400/90 font-semibold"
+            >
+              <Code2 className="h-3.5 w-3.5 text-orange-400" />
+              <span>Доп. задания</span>
+            </Link>
+            <Link
               href="/leaderboard"
               className="flex items-center gap-1.5 transition hover:text-amber-300"
             >

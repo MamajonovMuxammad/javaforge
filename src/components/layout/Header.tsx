@@ -7,7 +7,6 @@ import { useAuth, logoutUser } from "@/lib/auth/store";
 import { TOTAL_DAYS } from "@/data/curriculum";
 import { AchievementsModal } from "@/components/modals/AchievementsModal";
 import { ResetModal } from "@/components/modals/ResetModal";
-import { HomeworkModal } from "@/components/modals/HomeworkModal";
 import { LeaderboardModal } from "@/components/modals/LeaderboardModal";
 import { AuthModal } from "@/components/modals/AuthModal";
 import {
@@ -18,7 +17,7 @@ import {
   Coffee,
   Menu,
   Terminal,
-  GraduationCap,
+  Code2,
   Home,
   LogOut,
   User as UserIcon,
@@ -45,7 +44,6 @@ export function Header({
 
   const [achievementsOpen, setAchievementsOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
-  const [homeworkOpen, setHomeworkOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
 
@@ -54,6 +52,7 @@ export function Header({
   const streak = displayStreak(progress);
   const activeToday = isActiveToday(progress);
   const unlockedAchievementsCount = Object.keys(progress.achievements).length;
+  const practiceSolvedCount = (progress.completedTasks?.["practice"] ?? []).length;
 
   return (
     <>
@@ -166,19 +165,18 @@ export function Header({
             <span className="hidden md:inline">Лидерборд</span>
           </Link>
 
-          {/* Homework Hub Button */}
-          <button
-            type="button"
-            onClick={() => setHomeworkOpen(true)}
-            className="focus-ring relative flex items-center gap-1.5 rounded-lg border border-orange-500/30 bg-orange-500/10 px-2.5 py-1 text-xs font-medium text-orange-200 transition hover:bg-orange-500/20 hover:text-white"
-            title="Открыть центр домашних заданий курса"
+          {/* Practice Hub / Доп. задания Button */}
+          <Link
+            href="/practice"
+            className="focus-ring relative flex items-center gap-1.5 rounded-lg border border-orange-500/40 bg-orange-500/15 px-2.5 py-1 text-xs font-semibold text-orange-200 transition hover:bg-orange-500/25 hover:text-white shadow-sm"
+            title="Открыть арену дополнительных практических заданий по всем темам (55+ задач)"
           >
-            <GraduationCap className="h-3.5 w-3.5 text-orange-400" />
-            <span className="hidden md:inline">Домашки</span>
-            <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500/30 px-1 font-mono text-[10px] font-bold text-orange-200">
-              ⭐️
+            <Code2 className="h-3.5 w-3.5 text-orange-400" />
+            <span className="hidden md:inline">Доп. задания</span>
+            <span className="flex h-4 min-w-[18px] items-center justify-center rounded-full bg-orange-500/30 px-1 font-mono text-[10px] font-bold text-orange-200">
+              {practiceSolvedCount > 0 ? practiceSolvedCount : "⚡️"}
             </span>
-          </button>
+          </Link>
 
           {/* Achievements Button */}
           <button
@@ -255,11 +253,6 @@ export function Header({
       </header>
 
       {/* Modals */}
-      <HomeworkModal
-        open={homeworkOpen}
-        onClose={() => setHomeworkOpen(false)}
-        onSelectDayTask={onSelectDayTask ?? (() => {})}
-      />
       <AchievementsModal open={achievementsOpen} onClose={() => setAchievementsOpen(false)} />
       <LeaderboardModal
         open={leaderboardOpen}

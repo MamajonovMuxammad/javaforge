@@ -474,6 +474,59 @@ export function completeTask(
   return { ...result, dayCompleted: isNewDayComplete, taskAlreadyCompleted: false };
 }
 
+export function completePracticeTask(
+  taskId: string,
+  taskXp: number,
+  opts: { code?: string } = {}
+): ActionResult & { taskAlreadyCompleted: boolean } {
+  const s = getSnapshot();
+  const existingPracticeTasks = s.completedTasks["practice"] ?? [];
+  const codeKey = `practice_${taskId}`;
+
+  if (existingPracticeTasks.includes(taskId)) {
+    if (opts.code !== undefined && s.code[codeKey] !== opts.code) {
+      commit({ ...s, code: { ...s.code, [codeKey]: opts.code } });
+    }
+    return { xpGained: 0, unlocked: [], taskAlreadyCompleted: true };
+  }
+
+  const updatedTasks = [...existingPracticeTasks, taskId];
+  const next: ProgressState = {
+    ...s,
+    xp: s.xp + taskXp,
+    completedTasks: {
+      ...s.completedTasks,
+      practice: updatedTasks,
+    },
+    code: opts.code !== undefined ? { ...s.code, [codeKey]: opts.code } : s.code,
+    streak: touchStreak(s),
+    stats: {
+      ...s.stats,
+      checks: s.stats.checks + 1,
+    },
+  };
+
+  const { state: finalState, result } = applyAchievements(next, taskXp);
+  commit(finalState);
+  return { ...result, taskAlreadyCompleted: false };
+}
+
+export function savePracticeCode(taskId: string, code: string): void {
+  const s = getSnapshot();
+  const codeKey = `practice_${taskId}`;
+  if (s.code[codeKey] === code) return;
+  commit({ ...s, code: { ...s.code, [codeKey]: code } });
+}
+
+export function isPracticeTaskCompleted(s: ProgressState, taskId: string): boolean {
+  const practiceTasks = s.completedTasks?.["practice"] ?? [];
+  return practiceTasks.includes(taskId);
+}
+
+export function getPracticeCode(s: ProgressState, taskId: string): string | undefined {
+  return s.code[`practice_${taskId}`];
+}
+
 export function saveCode(day: number, code: string, taskId?: string): void {
   const s = getSnapshot();
   const dayKey = String(day);
