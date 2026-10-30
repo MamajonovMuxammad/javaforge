@@ -1422,7 +1422,7 @@ public ResponseEntity<Page<TaskResponseDto>> getTasks(
     selfStudy: [
       "Опубликовать готовый проект Task Tracker в своем GitHub-профиле",
       "Добавить бейджи сборки CI (GitHub Actions) в README.md",
-      "Поздравляем с прохождением всех 65 дней программы Java Journey! Вы готовы к штурму Junior-позиций!",
+      "Поздравляем с прохождением всей программы курса JavaForge! Вы готовы к штурму Junior-позиций!",
     ],
     resources: [
       link("docs", "Springdoc OpenAPI Documentation", "https://springdoc.org/", "Генерация Swagger UI для Spring Boot 3"),

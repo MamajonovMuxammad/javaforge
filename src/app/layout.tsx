@@ -23,7 +23,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "JavaForge — Интерактивный буткемп Java Backend от 0 до Junior",
   description:
-    "Современная интерактивная платформа для изучения Java Backend: живой запуск Java прямо в браузере, геймификация с XP и стриками, 65 дней от JVM до Spring Boot и Docker.",
+    "Современная интерактивная платформа для изучения Java Backend: живой запуск Java прямо в браузере, геймификация с XP и стриками, 84 дня от JVM до Spring Boot и Docker.",
   keywords: ["Java", "Backend", "Spring Boot", "JVM", "Обучение программированию", "Курс Java", "Junior"],
   authors: [{ name: "JavaForge Team" }],
 };

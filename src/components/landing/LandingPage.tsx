@@ -38,7 +38,7 @@ interface LandingPageProps {
 const FAQ_ITEMS = [
   {
     q: "Действительно ли платформа и курс бесплатны?",
-    a: "Да, JavaForge на 100% бесплатен. Все 65 дней обучения, 195+ задач (Разминка, Практика, Домашка), облачный компилятор OpenJDK 21 и автоматические тесты доступны без каких-либо платных подписок или скрытых платежей.",
+    a: "Да, JavaForge на 100% бесплатен. Все 84 дня обучения, 250+ задач (Разминка, Практика, Домашка), облачный компилятор OpenJDK 21 и автоматические тесты доступны без каких-либо платных подписок или скрытых платежей.",
   },
   {
     q: "Нужно ли что-то скачивать и настраивать (JDK, IntelliJ IDEA)?",
@@ -205,7 +205,7 @@ export function LandingPage({
 
           {/* Subtitle */}
           <p className="mx-auto max-w-2xl text-base sm:text-lg text-zinc-400 leading-relaxed mb-10">
-            65 дней интенсивной практики в браузере: от первой строчки в <code className="text-orange-300 bg-orange-500/10 px-1.5 py-0.5 rounded">Scanner</code> до Spring Boot, PostgreSQL, Docker и микросервисов.
+            {TOTAL_DAYS} дня интенсивной практики в браузере: от первой строчки в <code className="text-orange-300 bg-orange-500/10 px-1.5 py-0.5 rounded">Scanner</code> до Spring Boot, PostgreSQL, Docker и микросервисов.
             С умным автодополнением как в IntelliJ IDEA и реальным запуском Java.
           </p>
 
@@ -319,7 +319,7 @@ export function LandingPage({
             </div>
             <div>
               <div className="font-mono text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-300">
-                195+
+                250+
               </div>
               <div className="text-xs sm:text-sm text-zinc-400 mt-1 font-medium">
                 Практических задач (3 на день)
