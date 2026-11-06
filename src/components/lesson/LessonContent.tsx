@@ -28,6 +28,9 @@ import {
   Square,
   Layers,
   Copy,
+  X,
+  ArrowLeftRight,
+  GripVertical,
 } from "lucide-react";
 
 interface LessonContentProps {
@@ -38,6 +41,13 @@ interface LessonContentProps {
   onPrevDay?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  onCollapseTheory?: () => void;
+  isSwapped?: boolean;
+  onSwapPanels?: () => void;
+  onDragStartPanel?: (e: React.DragEvent) => void;
+  onDragOverPanel?: (e: React.DragEvent) => void;
+  onDropPanel?: (e: React.DragEvent) => void;
+  isDragTarget?: boolean;
 }
 
 function renderTheoryBlock(block: TheoryBlock, idx: number) {
@@ -444,6 +454,13 @@ export function LessonContent({
   onPrevDay,
   hasPrev,
   hasNext,
+  onCollapseTheory,
+  isSwapped,
+  onSwapPanels,
+  onDragStartPanel,
+  onDragOverPanel,
+  onDropPanel,
+  isDragTarget,
 }: LessonContentProps) {
   const [showSolution, setShowSolution] = useState(false);
   const [showHints, setShowHints] = useState(false);
@@ -471,25 +488,75 @@ export function LessonContent({
   const completedInDay = completedTasksForDay(progress, lesson.day);
 
   return (
-    <div ref={rootRef} className="flex h-full flex-col overflow-y-auto p-4 sm:p-6 lg:p-7">
+    <div
+      ref={rootRef}
+      onDragOver={onDragOverPanel}
+      onDrop={onDropPanel}
+      className={`flex h-full flex-col overflow-y-auto p-4 sm:p-6 lg:p-7 transition-all ${
+        isDragTarget ? "ring-2 ring-inset ring-orange-500/70 bg-orange-500/5" : ""
+      }`}
+    >
       {/* Lesson Header */}
       <div className="border-b border-white/[0.08] pb-5">
-        <div className="flex flex-wrap items-center gap-2 mb-2.5">
-          <span className="rounded-md border border-orange-500/40 bg-orange-500/10 px-2 py-0.5 font-mono text-xs font-bold text-orange-400">
-            День {lesson.day}
-          </span>
-          <span
-            className={`rounded-md border px-2 py-0.5 text-xs font-medium ${difficultyColors}`}
-          >
-            {lesson.difficulty}
-          </span>
-          <span className="flex items-center gap-1 text-xs text-zinc-400">
-            <Clock className="h-3 w-3" />
-            {lesson.duration}
-          </span>
-          <span className="flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 font-mono text-xs font-semibold text-amber-400">
-            +{lesson.xp} XP
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Drag-to-swap grip handle (Desktop) */}
+            {onDragStartPanel && (
+              <div
+                draggable
+                onDragStart={onDragStartPanel}
+                className="hidden lg:flex h-6 w-5 cursor-grab active:cursor-grabbing items-center justify-center rounded text-zinc-500 hover:bg-white/5 hover:text-orange-400 transition"
+                title="Перетащи за этот значок на окно редактора, чтобы поменять местами Теорию и Код"
+              >
+                <GripVertical className="h-3.5 w-3.5" />
+              </div>
+            )}
+            <span className="rounded-md border border-orange-500/40 bg-orange-500/10 px-2 py-0.5 font-mono text-xs font-bold text-orange-400">
+              День {lesson.day}
+            </span>
+            <span
+              className={`rounded-md border px-2 py-0.5 text-xs font-medium ${difficultyColors}`}
+            >
+              {lesson.difficulty}
+            </span>
+            <span className="flex items-center gap-1 text-xs text-zinc-400">
+              <Clock className="h-3 w-3" />
+              {lesson.duration}
+            </span>
+            <span className="flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 font-mono text-xs font-semibold text-amber-400">
+              +{lesson.xp} XP
+            </span>
+          </div>
+
+          {/* Desktop Window Controls: Swap Panels & Close Theory */}
+          <div className="hidden lg:flex items-center gap-1.5">
+            {onSwapPanels && (
+              <button
+                type="button"
+                onClick={onSwapPanels}
+                className={`flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition ${
+                  isSwapped
+                    ? "border-orange-500/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20"
+                    : "border-white/10 bg-zinc-900/70 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                }`}
+                title="Поменять местами окна (Теория ⇄ Код)"
+              >
+                <ArrowLeftRight className="h-3 w-3" />
+                <span>Поменять местами</span>
+              </button>
+            )}
+            {onCollapseTheory && (
+              <button
+                type="button"
+                onClick={onCollapseTheory}
+                className="flex items-center gap-1 rounded-md border border-white/10 bg-zinc-900/70 px-2 py-1 text-[11px] font-medium text-zinc-400 hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300 transition"
+                title="Закрыть окно теории (оставить только окно для кода)"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Скрыть теорию</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">

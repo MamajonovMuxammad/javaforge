@@ -29,37 +29,12 @@ export function getAuthHeaders(): Record<string, string> {
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  const sessionUser = loadSession();
-  if (sessionUser?.id) {
-    headers["X-User-Id"] = String(sessionUser.id);
-  }
-  if (sessionUser?.username) {
-    headers["X-Username"] = String(sessionUser.username);
-  }
   return headers;
 }
 
 const AVATARS = ["☕️", "🚀", "⚡️", "💻", "🔥", "🛡️", "👾", "🦊", "🎯", "👑"];
 
-// Seed users for community / leaderboard
-const SEED_USERS: StoredUserAccount[] = [
-  {
-    id: "cmvkkl34d0000jv086y8tjidg",
-    username: "Nazar",
-    avatar: "⚡️",
-    role: "student",
-    createdAt: "2026-10-23T07:29:43.000Z",
-    passwordHash: "hash_demo_123",
-  },
-  {
-    id: "cmvjf8aco0000jq0743nk68wk",
-    username: "Skittler",
-    avatar: "👾",
-    role: "student",
-    createdAt: "2026-10-22T10:51:40.776Z",
-    passwordHash: "hash_demo_123",
-  },
-];
+const SEED_USERS: StoredUserAccount[] = [];
 
 function hashPassword(pwd: string): string {
   let hash = 0;
@@ -161,6 +136,13 @@ if (typeof window !== "undefined") {
 
         // Hydrate progress directly into the store so UI updates immediately
         await hydrateFromServer(true);
+      } else if (data?.revoked) {
+        saveSession(null, null);
+        currentAuthState = {
+          user: null,
+          isAuthenticated: false,
+        };
+        notify();
       }
     })
     .catch(() => {});
@@ -186,10 +168,6 @@ export function useAuth(): AuthState {
 
 export function getCurrentUser(): User | null {
   return currentAuthState.user;
-}
-
-export function getAllUsers(): StoredUserAccount[] {
-  return loadUsers();
 }
 
 function registerUserLocal(
@@ -251,7 +229,7 @@ function loginUserLocal(
   }
 
   const expectedHash = hashPassword(password);
-  if (account.passwordHash !== expectedHash && account.passwordHash !== "hash_demo_123") {
+  if (account.passwordHash !== expectedHash) {
     return { success: false, error: "Неверный пароль" };
   }
 

@@ -23,7 +23,7 @@ interface LeaderboardEntry {
 const FALLBACK_LEADERBOARD: LeaderboardEntry[] = [
   {
     rank: 1,
-    id: "cmvkkl34d0000jv086y8tjidg",
+    id: "pub_nazar",
     username: "Nazar",
     avatar: "⚡️",
     role: "student",
@@ -37,7 +37,7 @@ const FALLBACK_LEADERBOARD: LeaderboardEntry[] = [
   },
   {
     rank: 2,
-    id: "cmvi7jwgy0000egwoq8v5rv10",
+    id: "pub_wercis",
     username: "wercis",
     avatar: "🚀",
     role: "student",
@@ -51,7 +51,7 @@ const FALLBACK_LEADERBOARD: LeaderboardEntry[] = [
   },
   {
     rank: 3,
-    id: "cmvjf8aco0000jq0743nk68wk",
+    id: "pub_skittler",
     username: "Skittler",
     avatar: "👾",
     role: "student",
@@ -143,13 +143,13 @@ export async function GET() {
 
     const users = await prisma.user.findMany({
       where: {
+        role: { not: "banned" },
         username: {
           in: ["wercis", "Nazar", "Skittler", "nazar", "skittler", "Wercis"],
           mode: "insensitive",
         },
       },
       select: {
-        id: true,
         username: true,
         avatar: true,
         role: true,
@@ -213,7 +213,7 @@ export async function GET() {
 
       return {
         rank: 0,
-        id: u.id,
+        id: `pub_${u.username.toLowerCase()}`,
         username: u.username,
         avatar: u.avatar,
         role: u.role,

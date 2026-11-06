@@ -52,6 +52,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
     }
 
+    if (user.role === "banned") {
+      return NextResponse.json({ error: "Доступ к аккаунту заблокирован" }, { status: 403 });
+    }
+
     const token = await signSessionToken({
       userId: user.id,
       username: user.username,

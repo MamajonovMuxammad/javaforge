@@ -22,6 +22,9 @@ import {
   Sparkles,
   ArrowRight,
   User as UserIcon,
+  ArrowLeftRight,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 function JavaForgeApp() {
@@ -68,6 +71,122 @@ function JavaForgeApp() {
   } | null>(null);
 
   const theoryContainerRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
+
+  // Flexible Desktop Window Layout State
+  const [theoryWidthPct, setTheoryWidthPct] = useState<number>(48);
+  const [isTheoryCollapsed, setIsTheoryCollapsed] = useState<boolean>(false);
+  const [isSwapped, setIsSwapped] = useState<boolean>(false);
+  const [isResizingHorizontal, setIsResizingHorizontal] = useState<boolean>(false);
+  const [draggedPanel, setDraggedPanel] = useState<"theory" | "editor" | null>(null);
+  const [dragOverPanel, setDragOverPanel] = useState<"theory" | "editor" | null>(null);
+
+  useEffect(() => {
+    try {
+      const savedWidth = localStorage.getItem("jf_theory_width_pct");
+      if (savedWidth) {
+        const parsed = Number(savedWidth);
+        if (Number.isFinite(parsed) && parsed >= 20 && parsed <= 80) {
+          setTheoryWidthPct(parsed);
+        }
+      }
+      const savedCollapsed = localStorage.getItem("jf_theory_collapsed");
+      if (savedCollapsed === "true") {
+        setIsTheoryCollapsed(true);
+      }
+      const savedSwapped = localStorage.getItem("jf_panels_swapped");
+      if (savedSwapped === "true") {
+        setIsSwapped(true);
+      }
+    } catch {}
+  }, []);
+
+  const toggleTheoryCollapsed = (nextVal?: boolean) => {
+    setIsTheoryCollapsed((prev) => {
+      const val = nextVal !== undefined ? nextVal : !prev;
+      try {
+        localStorage.setItem("jf_theory_collapsed", String(val));
+      } catch {}
+      return val;
+    });
+  };
+
+  const toggleSwapPanels = () => {
+    setIsSwapped((prev) => {
+      const val = !prev;
+      try {
+        localStorage.setItem("jf_panels_swapped", String(val));
+      } catch {}
+      return val;
+    });
+  };
+
+  const handleHorizontalResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingHorizontal(true);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const container = workspaceRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0) return;
+
+      const relativeX = moveEvent.clientX - rect.left;
+      const rawLeftPct = (relativeX / rect.width) * 100;
+      // If swapped, Editor is on the left and Theory is on the right
+      const computedTheoryPct = isSwapped ? 100 - rawLeftPct : rawLeftPct;
+
+      if (computedTheoryPct < 14) {
+        setIsTheoryCollapsed(true);
+        try {
+          localStorage.setItem("jf_theory_collapsed", "true");
+        } catch {}
+      } else {
+        const clamped = Math.max(20, Math.min(78, Math.round(computedTheoryPct * 10) / 10));
+        setIsTheoryCollapsed(false);
+        setTheoryWidthPct(clamped);
+        try {
+          localStorage.setItem("jf_theory_collapsed", "false");
+          localStorage.setItem("jf_theory_width_pct", String(clamped));
+        } catch {}
+      }
+    };
+
+    const onMouseUp = () => {
+      setIsResizingHorizontal(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  const handlePanelDragStart = (panel: "theory" | "editor") => (e: React.DragEvent) => {
+    setDraggedPanel(panel);
+    e.dataTransfer.effectAllowed = "move";
+    try {
+      e.dataTransfer.setData("text/plain", panel);
+    } catch {}
+  };
+
+  const handlePanelDragOver = (panel: "theory" | "editor") => (e: React.DragEvent) => {
+    if (!draggedPanel || draggedPanel === panel) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverPanel !== panel) {
+      setDragOverPanel(panel);
+    }
+  };
+
+  const handlePanelDrop = (targetPanel: "theory" | "editor") => (e: React.DragEvent) => {
+    e.preventDefault();
+    if (draggedPanel && draggedPanel !== targetPanel) {
+      toggleSwapPanels();
+    }
+    setDraggedPanel(null);
+    setDragOverPanel(null);
+  };
 
   // Keep active task synced when day changes
   const prevDayRef = useRef(currentDay);
@@ -92,16 +211,9 @@ function JavaForgeApp() {
   useEffect(() => {
     const dayParam = searchParams.get("day");
     const viewParam = searchParams.get("view");
-    const testParam = searchParams.get("test");
 
-    if (dayParam || viewParam === "app" || testParam === "levelup") {
+    if (dayParam || viewParam === "app") {
       setView("app");
-    }
-
-    if (testParam === "levelup") {
-      setTimeout(() => {
-        handleDayCompleted(currentDay > 0 ? currentDay : 3);
-      }, 200);
     }
 
     if (dayParam !== null && dayParam !== "") {
@@ -225,7 +337,6 @@ function JavaForgeApp() {
         }}
         onSelectDayTask={handleSelectDayTask}
         onGoHome={handleGoHome}
-        onTestLevelUp={() => handleDayCompleted(currentDay > 0 ? currentDay : 3)}
       />
 
       {/* Main Body with Slide-over Drawer + 2-Column Workspace */}
@@ -304,12 +415,56 @@ function JavaForgeApp() {
               />
             </main>
           ) : (
-            <main className="flex flex-1 overflow-hidden relative">
-              {/* Left Column: Lesson Content (Theory, 3 Tasks, Videos) */}
+            <main
+              ref={workspaceRef}
+              onDragEnd={() => {
+                setDraggedPanel(null);
+                setDragOverPanel(null);
+              }}
+              className={`flex flex-1 overflow-hidden relative ${
+                isSwapped ? "lg:flex-row-reverse" : "lg:flex-row"
+              }`}
+            >
+              {/* Fullscreen transparent overlay during drag-resize so Monaco doesn't swallow mouse events */}
+              {isResizingHorizontal && (
+                <div className="fixed inset-0 z-50 cursor-col-resize select-none" />
+              )}
+
+              {/* Edge Reopen Tab when Theory is Collapsed (Desktop) */}
+              {isTheoryCollapsed && (
+                <button
+                  type="button"
+                  onClick={() => toggleTheoryCollapsed(false)}
+                  className={`hidden lg:flex fixed top-1/2 -translate-y-1/2 z-30 items-center gap-1.5 border border-orange-500/40 bg-zinc-950/95 hover:bg-orange-500/20 text-orange-300 hover:text-white px-2 py-3 shadow-xl shadow-black/60 transition-all ${
+                    isSwapped
+                      ? "right-0 rounded-l-xl border-r-0"
+                      : "left-0 rounded-r-xl border-l-0"
+                  }`}
+                  title="Открыть панель теории"
+                >
+                  <BookOpen className="h-4 w-4 text-orange-400" />
+                  <span className="text-xs font-semibold [writing-mode:vertical-rl] rotate-180 tracking-wide">
+                    Теория урока
+                  </span>
+                </button>
+              )}
+
+              {/* Theory Column (Lesson Content, 3 Tasks, Videos) */}
               <div
                 ref={theoryContainerRef}
-                className={`flex-1 overflow-y-auto border-r border-white/[0.08] bg-[#09090b] transition-all duration-300 ${
-                  mobileTab === "theory" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
+                style={
+                  !isTheoryCollapsed
+                    ? ({ "--theory-width": `${theoryWidthPct}%` } as React.CSSProperties)
+                    : undefined
+                }
+                className={`overflow-y-auto bg-[#09090b] min-w-0 ${
+                  mobileTab === "theory"
+                    ? isTheoryCollapsed
+                      ? "flex flex-1 flex-col lg:hidden"
+                      : "flex flex-1 lg:flex-none lg:w-[var(--theory-width)] flex-col"
+                    : isTheoryCollapsed
+                    ? "hidden"
+                    : "hidden lg:flex lg:flex-none lg:w-[var(--theory-width)] lg:flex-col"
                 }`}
               >
                 <LessonContent
@@ -327,12 +482,54 @@ function JavaForgeApp() {
                   onPrevDay={handlePrevDay}
                   hasPrev={currentDay > 0}
                   hasNext={currentDay < TOTAL_DAYS}
+                  onCollapseTheory={() => toggleTheoryCollapsed(true)}
+                  isSwapped={isSwapped}
+                  onSwapPanels={toggleSwapPanels}
+                  onDragStartPanel={handlePanelDragStart("theory")}
+                  onDragOverPanel={handlePanelDragOver("theory")}
+                  onDropPanel={handlePanelDrop("theory")}
+                  isDragTarget={dragOverPanel === "theory"}
                 />
               </div>
 
-              {/* Right Column: Interactive Code Sandbox */}
+              {/* Central Draggable Vertical Divider (Desktop) */}
+              {!isTheoryCollapsed && (
+                <div
+                  onMouseDown={handleHorizontalResizeStart}
+                  onDoubleClick={() => {
+                    setTheoryWidthPct(50);
+                    try {
+                      localStorage.setItem("jf_theory_width_pct", "50");
+                    } catch {}
+                  }}
+                  title="Потяни влево/вправо для изменения ширины окон (двойной клик — 50/50)"
+                  className={`group relative z-20 hidden lg:flex w-2 shrink-0 cursor-col-resize flex-col items-center justify-center border-x transition-colors select-none ${
+                    isResizingHorizontal
+                      ? "border-orange-500/80 bg-orange-500/30"
+                      : "border-white/[0.08] bg-[#0c0c0e] hover:border-orange-500/50 hover:bg-orange-500/15"
+                  }`}
+                >
+                  {/* Visual Grip Pill */}
+                  <div
+                    className={`w-1 rounded-full transition-all ${
+                      isResizingHorizontal
+                        ? "h-16 bg-orange-400"
+                        : "h-10 bg-zinc-700 group-hover:h-14 group-hover:bg-orange-400"
+                    }`}
+                  />
+
+                  {/* Live Width Indicator Badge while dragging */}
+                  {isResizingHorizontal && (
+                    <div className="pointer-events-none absolute top-1/2 -translate-y-12 rounded-md border border-orange-500/50 bg-zinc-950 px-2 py-0.5 font-mono text-[10px] font-bold text-orange-300 shadow-lg whitespace-nowrap">
+                      {Math.round(theoryWidthPct)}% / {Math.round(100 - theoryWidthPct)}%
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Code Editor Column (Interactive Code Sandbox) */}
               <div
-                className={`flex-1 overflow-hidden bg-[#09090b] transition-all duration-300 ${
+                className={`flex-1 overflow-hidden bg-[#09090b] min-w-0 ${
                   mobileTab === "editor" ? "flex flex-col" : "hidden lg:flex lg:flex-col"
                 }`}
               >
@@ -341,6 +538,14 @@ function JavaForgeApp() {
                   activeTaskId={activeTaskId}
                   onSelectTask={setActiveTaskId}
                   onSuccess={() => handleDayCompleted(currentDay)}
+                  isTheoryCollapsed={isTheoryCollapsed}
+                  onToggleTheory={() => toggleTheoryCollapsed()}
+                  isSwapped={isSwapped}
+                  onSwapPanels={toggleSwapPanels}
+                  onDragStartPanel={handlePanelDragStart("editor")}
+                  onDragOverPanel={handlePanelDragOver("editor")}
+                  onDropPanel={handlePanelDrop("editor")}
+                  isDragTarget={dragOverPanel === "editor"}
                 />
               </div>
             </main>

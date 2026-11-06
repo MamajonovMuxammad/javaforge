@@ -71,6 +71,8 @@ async function checkLocalJava(): Promise<boolean> {
 }
 
 const LOCAL_JVM_FLAGS = [
+  "-Xmx128m",
+  "-Xss1m",
   "-Dfile.encoding=UTF-8",
   "-Dsun.stdout.encoding=UTF-8",
   "-Dsun.stderr.encoding=UTF-8",
@@ -80,6 +82,46 @@ const LOCAL_JVM_FLAGS = [
   "-Duser.language=en",
   "-Duser.country=US",
 ];
+
+const FORBIDDEN_JAVA_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
+  { pattern: /\bProcessBuilder\b/, reason: "Запуск системных процессов (ProcessBuilder) запрещён в целях безопасности." },
+  { pattern: /\bRuntime\s*\.\s*getRuntime\b/, reason: "Доступ к Runtime.getRuntime() запрещён в целях безопасности." },
+  { pattern: /\bSystem\s*\.\s*getenv\b/, reason: "Чтение переменных окружения сервера (System.getenv) запрещено." },
+  { pattern: /\bSystem\s*\.\s*getPropert(?:y|ies)\b/, reason: "Чтение системных свойств сервера (System.getProperty) запрещено." },
+  { pattern: /\bSystem\s*\.\s*setSecurityManager\b/, reason: "Изменение SecurityManager запрещено." },
+  { pattern: /\bjava\s*\.\s*nio\s*\.\s*file\b|\bFiles\s*\.\s*(?:read|write|walk|list|lines|delete|copy|move|newBuffered|newInputStream|newOutputStream)\b/, reason: "Прямой доступ к файловой системе сервера запрещён." },
+  { pattern: /\b(?:FileInputStream|FileOutputStream|FileReader|FileWriter|RandomAccessFile)\b/, reason: "Чтение и запись файлов на сервере запрещены." },
+  { pattern: /\bjava\s*\.\s*net\b|\bjavax\s*\.\s*net\b|\bHttpClient\b|\bSocket\b|\bServerSocket\b|\bURL\s*\(/, reason: "Сетевые подключения из учебного кода запрещены." },
+  { pattern: /\bjava\s*\.\s*lang\s*\.\s*reflect\b|\bMethodHandles\b|\bsun\s*\.\s*misc\s*\.\s*Unsafe\b|\bClassLoader\b|\bClass\s*\.\s*forName\b/, reason: "Использование низкоуровневой рефлексии и ClassLoader запрещено в песочнице." },
+  { pattern: /\bjavax\s*\.\s*script\b|\bScriptEngineManager\b/, reason: "Выполнение внешних скриптов запрещено." },
+];
+
+export function validateJavaCodeSecurity(code: string): string | null {
+  const stripped = code
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ");
+  for (const rule of FORBIDDEN_JAVA_PATTERNS) {
+    if (rule.pattern.test(stripped)) {
+      return rule.reason;
+    }
+  }
+  return null;
+}
+
+function getSanitizedChildEnv(): NodeJS.ProcessEnv {
+  return {
+    NODE_ENV: "production",
+    PATH: process.env.PATH,
+    Path: process.env.Path,
+    JAVA_HOME: process.env.JAVA_HOME,
+    SYSTEMROOT: process.env.SYSTEMROOT,
+    SystemRoot: process.env.SystemRoot,
+    TEMP: process.env.TEMP,
+    TMP: process.env.TMP,
+    HOME: process.env.HOME,
+    LANG: "en_US.UTF-8",
+  };
+}
 
 /**
  * If code reads floating-point values via Scanner.nextDouble() / nextFloat(),
@@ -114,7 +156,7 @@ function spawnWithOutput(
   return new Promise((resolve, reject) => {
     let child;
     try {
-      child = spawn(cmd, args, { cwd, windowsHide: true });
+      child = spawn(cmd, args, { cwd, windowsHide: true, env: getSanitizedChildEnv() });
     } catch (err) {
       return reject(err);
     }
@@ -535,6 +577,19 @@ async function runPaiza(code: string, stdin = ""): Promise<RunResult> {
 /* ------------------------------------------------------------------ */
 
 export async function executeJava(code: string, rawStdin = ""): Promise<RunResult> {
+  const securityViolation = validateJavaCodeSecurity(code);
+  if (securityViolation) {
+    return {
+      status: "compile_error",
+      stdout: "",
+      stderr: "",
+      compileOutput: `🛡️ Защита безопасности JavaForge: ${securityViolation}`,
+      exitCode: 1,
+      provider: "local",
+      timeMs: 0,
+    };
+  }
+
   const stdin = normalizeStdinForJava(code, rawStdin);
   const mode = (process.env.JAVA_RUNNER ?? "auto").toLowerCase();
 

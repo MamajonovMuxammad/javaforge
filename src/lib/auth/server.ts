@@ -65,75 +65,72 @@ export async function verifySessionToken(token: string): Promise<{ userId: strin
 }
 
 export async function getSessionFromRequest(request: Request): Promise<{ userId: string; username: string; role?: string } | null> {
+  let verified: { userId: string; username: string; role?: string } | null = null;
+
   // 1. Check Authorization Bearer header
   const authHeader = request.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7).trim();
-    const verified = await verifySessionToken(token);
-    if (verified) return verified;
+    verified = await verifySessionToken(token);
   }
 
   // 2. Check Cookie
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-    if (token) {
-      const verified = await verifySessionToken(token);
-      if (verified) return verified;
+  if (!verified) {
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+      if (token) {
+        verified = await verifySessionToken(token);
+      }
+    } catch {
+      // cookies() may throw outside request scope
     }
-  } catch {
-    // cookies() may throw outside request scope
   }
 
   // 3. Fallback: Parse raw Cookie header directly from request
-  try {
-    const rawCookie = request.headers.get("cookie");
-    if (rawCookie) {
-      const match = rawCookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE_NAME}=([^;]*)`));
-      if (match && match[1]) {
-        const verified = await verifySessionToken(decodeURIComponent(match[1]));
-        if (verified) return verified;
+  if (!verified) {
+    try {
+      const rawCookie = request.headers.get("cookie");
+      if (rawCookie) {
+        const match = rawCookie.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE_NAME}=([^;]*)`));
+        if (match && match[1]) {
+          verified = await verifySessionToken(decodeURIComponent(match[1]));
+        }
       }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
 
-  // 4. Fallback: Verify client session headers (X-User-Id + X-Username) against PostgreSQL
-  // This ensures users who logged in before a secret rotation or across tabs never lose sync.
-  try {
-    const headerUserId = request.headers.get("x-user-id")?.trim();
-    const headerUsername = request.headers.get("x-username")?.trim();
-    if (headerUserId && headerUsername && isDbConfigured && prisma) {
+  if (!verified) {
+    return null;
+  }
+
+  // 4. Verify account status against PostgreSQL when database is active (blocks banned/deleted users)
+  if (isDbConfigured && prisma) {
+    try {
       const dbUser = await prisma.user.findUnique({
-        where: { id: headerUserId },
+        where: { id: verified.userId },
         select: { id: true, username: true, role: true },
       });
-      if (dbUser && dbUser.username.toLowerCase() === headerUsername.toLowerCase()) {
-        return {
-          userId: dbUser.id,
-          username: dbUser.username,
-          role: dbUser.role || "student",
-        };
+      if (!dbUser || dbUser.role === "banned") {
+        return null;
       }
-      // Also check by username if id was a local seed id (e.g. peer_skittler / usr_...)
-      const dbUserByName = await prisma.user.findFirst({
-        where: { username: { equals: headerUsername, mode: "insensitive" } },
-        select: { id: true, username: true, role: true },
-      });
-      if (dbUserByName) {
-        return {
-          userId: dbUserByName.id,
-          username: dbUserByName.username,
-          role: dbUserByName.role || "student",
-        };
-      }
+      return {
+        userId: dbUser.id,
+        username: dbUser.username,
+        role: dbUser.role || "student",
+      };
+    } catch {
+      // If DB has a transient connection hiccup, still trust the cryptographically verified JWT
     }
-  } catch {
-    // ignore
   }
 
-  return null;
+  if (verified.role === "banned") {
+    return null;
+  }
+
+  return verified;
 }
 
 export { SESSION_COOKIE_NAME };

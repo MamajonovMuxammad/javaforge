@@ -6,7 +6,15 @@ export async function GET(request: Request) {
   try {
     const session = await getSessionFromRequest(request);
     if (!session) {
-      return NextResponse.json({ user: null }, { status: 200 });
+      const response = NextResponse.json(
+        { user: null, revoked: true },
+        {
+          status: 200,
+          headers: { "Cache-Control": "no-store, no-cache, must-revalidate, private" },
+        }
+      );
+      response.cookies.delete(SESSION_COOKIE_NAME);
+      return response;
     }
 
     // Generate fresh token for dual-channel (cookie + Bearer) resilience
@@ -54,10 +62,15 @@ export async function GET(request: Request) {
       }
     }
 
-    const response = NextResponse.json({
-      user: userData,
-      token,
-    });
+    const response = NextResponse.json(
+      {
+        user: userData,
+        token,
+      },
+      {
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate, private" },
+      }
+    );
 
     response.cookies.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,

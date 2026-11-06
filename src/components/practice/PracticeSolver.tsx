@@ -37,6 +37,9 @@ import {
   Lightbulb,
   CheckCircle2,
   Code2,
+  ArrowLeftRight,
+  Maximize2,
+  GripVertical,
 } from "lucide-react";
 
 interface PracticeSolverProps {
@@ -59,6 +62,48 @@ export function PracticeSolver({
 
   // Theory is HIDDEN BY DEFAULT per user requirement
   const [isTheoryOpen, setIsTheoryOpen] = useState(false);
+
+  // Flexible Window Layout States for Practice Solver
+  const [editorWidthPct, setEditorWidthPct] = useState<number>(58);
+  const [isSidePaneCollapsed, setIsSidePaneCollapsed] = useState<boolean>(false);
+  const [isSwapped, setIsSwapped] = useState<boolean>(false);
+  const [isResizingSplit, setIsResizingSplit] = useState<boolean>(false);
+  const [draggedPane, setDraggedPane] = useState<"editor" | "side" | null>(null);
+  const [dragOverPane, setDragOverPane] = useState<"editor" | "side" | null>(null);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleSplitResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingSplit(true);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const container = splitContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      if (rect.width <= 0) return;
+
+      const relativeX = moveEvent.clientX - rect.left;
+      const rawLeftPct = (relativeX / rect.width) * 100;
+      const computedEditorPct = isSwapped ? 100 - rawLeftPct : rawLeftPct;
+
+      if (computedEditorPct > 86) {
+        setIsSidePaneCollapsed(true);
+      } else {
+        const clamped = Math.max(25, Math.min(80, Math.round(computedEditorPct * 10) / 10));
+        setIsSidePaneCollapsed(false);
+        setEditorWidthPct(clamped);
+      }
+    };
+
+    const onMouseUp = () => {
+      setIsResizingSplit(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
 
   // Active editor code
   const [code, setCode] = useState<string>(() => {
@@ -123,6 +168,7 @@ export function PracticeSolver({
     if (isRunning || isChecking) return;
     setIsRunning(true);
     setActiveTab("terminal");
+    setIsSidePaneCollapsed(false);
     try {
       const res = await runJava(code, stdin);
       setRunResult(res);
@@ -161,6 +207,7 @@ export function PracticeSolver({
     if (isRunning || isChecking) return;
     setIsChecking(true);
     setActiveTab("tests");
+    setIsSidePaneCollapsed(false);
     try {
       const outcome = await checkTaskSolution(task, code);
       setCheckOutcome(outcome);
@@ -443,17 +490,92 @@ export function PracticeSolver({
           </aside>
         )}
 
-        {/* Center / Right Split: Left is Monaco IDE, Right is Task Description & Tests */}
-        <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
+        {/* Center / Right Split: Resizable, Swappable & Collapsible IDE + Task/Tests/Terminal */}
+        <div
+          ref={splitContainerRef}
+          onDragEnd={() => {
+            setDraggedPane(null);
+            setDragOverPane(null);
+          }}
+          className={`flex flex-1 flex-col overflow-hidden relative ${
+            isSwapped ? "lg:flex-row-reverse" : "lg:flex-row"
+          }`}
+        >
+          {isResizingSplit && (
+            <div className="fixed inset-0 z-50 cursor-col-resize select-none" />
+          )}
+
           {/* Monaco Editor Pane (Centered and Spacious) */}
-          <div className="flex flex-1 flex-col border-b lg:border-b-0 lg:border-r border-white/[0.08] bg-[#09090b] min-w-0">
+          <div
+            onDragOver={(e) => {
+              if (draggedPane && draggedPane !== "editor") {
+                e.preventDefault();
+                setDragOverPane("editor");
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggedPane && draggedPane !== "editor") {
+                setIsSwapped((prev) => !prev);
+              }
+              setDraggedPane(null);
+              setDragOverPane(null);
+            }}
+            style={
+              !isSidePaneCollapsed
+                ? ({ "--editor-width": `${editorWidthPct}%` } as React.CSSProperties)
+                : undefined
+            }
+            className={`flex flex-col border-b lg:border-b-0 bg-[#09090b] min-w-0 ${
+              isSidePaneCollapsed
+                ? "flex-1"
+                : "flex-1 lg:flex-none lg:w-[var(--editor-width)]"
+            } ${dragOverPane === "editor" ? "ring-2 ring-inset ring-orange-500/70" : ""}`}
+          >
             {/* Editor Top Bar */}
             <div className="flex h-10 shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#0f0f12] px-3">
               <div className="flex items-center gap-2">
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggedPane("editor");
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  className="hidden lg:flex h-6 w-5 cursor-grab active:cursor-grabbing items-center justify-center rounded text-zinc-500 hover:bg-white/5 hover:text-orange-400 transition"
+                  title="Перетащи на соседнее окно, чтобы поменять местами Код и Задание/Терминал"
+                >
+                  <GripVertical className="h-3.5 w-3.5" />
+                </div>
                 <span className="flex h-2 w-2 rounded-full bg-orange-400" />
                 <span className="font-mono text-xs font-semibold text-zinc-200">
                   Main.java
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setIsSwapped((prev) => !prev)}
+                  className="hidden lg:flex items-center gap-1 rounded border border-white/10 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition"
+                  title="Поменять местами окна (Код ⇄ Задание/Терминал)"
+                >
+                  <ArrowLeftRight className="h-3 w-3" />
+                  <span>Окна ⇄</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsSidePaneCollapsed((prev) => !prev)}
+                  className={`hidden lg:flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] transition ${
+                    isSidePaneCollapsed
+                      ? "border-orange-500/40 bg-orange-500/15 text-orange-300 hover:bg-orange-500/25"
+                      : "border-white/10 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  }`}
+                  title={
+                    isSidePaneCollapsed
+                      ? "Показать окно задания, тестов и терминала"
+                      : "Скрыть окно задания/терминала и развернуть код на весь экран"
+                  }
+                >
+                  <Maximize2 className="h-3 w-3" />
+                  <span>{isSidePaneCollapsed ? "Показать задание / терминал" : "На весь экран"}</span>
+                </button>
               </div>
 
               {/* Action Buttons */}
@@ -537,14 +659,67 @@ export function PracticeSolver({
             </div>
           </div>
 
-          {/* Right Pane: Task Details, Tests, Terminal & Stdin */}
-          <div className="flex flex-1 flex-col bg-[#09090b] min-w-0 max-w-full lg:max-w-xl">
+          {/* Draggable Vertical Splitter between Editor and Task/Terminal Pane */}
+          {!isSidePaneCollapsed && (
+            <div
+              onMouseDown={handleSplitResizeStart}
+              onDoubleClick={() => setEditorWidthPct(58)}
+              title="Потяни влево/вправо для изменения размера окон (двойной клик — сброс)"
+              className={`group relative z-20 hidden lg:flex w-2 shrink-0 cursor-col-resize flex-col items-center justify-center border-x transition-colors select-none ${
+                isResizingSplit
+                  ? "border-orange-500 bg-orange-500/30"
+                  : "border-white/[0.08] bg-[#0c0c0e] hover:border-orange-500/50 hover:bg-orange-500/15"
+              }`}
+            >
+              <div
+                className={`w-1 rounded-full transition-all ${
+                  isResizingSplit
+                    ? "h-16 bg-orange-400"
+                    : "h-10 bg-zinc-700 group-hover:h-14 group-hover:bg-orange-400"
+                }`}
+              />
+            </div>
+          )}
+
+          {/* Side Pane: Task Details, Tests, Terminal & Stdin */}
+          {!isSidePaneCollapsed && (
+          <div
+            onDragOver={(e) => {
+              if (draggedPane && draggedPane !== "side") {
+                e.preventDefault();
+                setDragOverPane("side");
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggedPane && draggedPane !== "side") {
+                setIsSwapped((prev) => !prev);
+              }
+              setDraggedPane(null);
+              setDragOverPane(null);
+            }}
+            className={`flex flex-1 flex-col bg-[#09090b] min-w-0 ${
+              dragOverPane === "side" ? "ring-2 ring-inset ring-orange-500/70" : ""
+            }`}
+          >
             {/* Tabs Header */}
-            <div className="flex h-10 shrink-0 border-b border-white/[0.08] bg-[#0c0c0f] px-2">
+            <div className="flex h-10 shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#0c0c0f] px-2">
+              <div className="flex h-full items-center overflow-x-auto">
+                <div
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggedPane("side");
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  className="hidden lg:flex h-6 w-5 mr-1 cursor-grab active:cursor-grabbing items-center justify-center rounded text-zinc-500 hover:bg-white/5 hover:text-orange-400 transition"
+                  title="Перетащи на окно кода, чтобы поменять панели местами"
+                >
+                  <GripVertical className="h-3.5 w-3.5" />
+                </div>
               <button
                 type="button"
                 onClick={() => setActiveTab("description")}
-                className={`flex items-center gap-1.5 border-b-2 px-3 text-xs font-semibold transition ${
+                className={`flex h-full items-center gap-1.5 border-b-2 px-3 text-xs font-semibold transition ${
                   activeTab === "description"
                     ? "border-orange-500 text-white"
                     : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -557,7 +732,7 @@ export function PracticeSolver({
               <button
                 type="button"
                 onClick={() => setActiveTab("tests")}
-                className={`flex items-center gap-1.5 border-b-2 px-3 text-xs font-semibold transition ${
+                className={`flex h-full items-center gap-1.5 border-b-2 px-3 text-xs font-semibold transition ${
                   activeTab === "tests"
                     ? "border-orange-500 text-white"
                     : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -577,7 +752,7 @@ export function PracticeSolver({
               <button
                 type="button"
                 onClick={() => setActiveTab("stdin")}
-                className={`flex items-center gap-1.5 border-b-2 px-3 text-xs font-semibold transition ${
+                className={`flex h-full items-center gap-1.5 border-b-2 px-3 text-xs font-semibold transition ${
                   activeTab === "stdin"
                     ? "border-orange-500 text-white"
                     : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -590,7 +765,7 @@ export function PracticeSolver({
               <button
                 type="button"
                 onClick={() => setActiveTab("terminal")}
-                className={`flex items-center gap-1.5 border-b-2 px-3 text-xs font-semibold transition ${
+                className={`flex h-full items-center gap-1.5 border-b-2 px-3 text-xs font-semibold transition ${
                   activeTab === "terminal"
                     ? "border-orange-500 text-white"
                     : "border-transparent text-zinc-400 hover:text-zinc-200"
@@ -607,6 +782,17 @@ export function PracticeSolver({
                     }`}
                   />
                 )}
+              </button>
+              </div>
+
+              {/* Close Side Pane Button (Desktop) */}
+              <button
+                type="button"
+                onClick={() => setIsSidePaneCollapsed(true)}
+                className="hidden lg:flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-white/5 hover:text-zinc-200 transition"
+                title="Скрыть эту панель (оставить только окно кода)"
+              >
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
 
@@ -828,6 +1014,7 @@ export function PracticeSolver({
               )}
             </div>
           </div>
+          )}
         </div>
       </div>
 

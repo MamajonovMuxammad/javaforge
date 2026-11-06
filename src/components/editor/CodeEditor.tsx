@@ -35,6 +35,15 @@ import {
   Flame,
   ShieldAlert,
   CornerDownLeft,
+  ChevronDown,
+  ChevronUp,
+  ArrowLeftRight,
+  Maximize2,
+  Minimize2,
+  GripHorizontal,
+  GripVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 interface CodeEditorProps {
@@ -42,6 +51,15 @@ interface CodeEditorProps {
   activeTaskId?: string;
   onSelectTask?: (taskId: string) => void;
   onSuccess?: () => void;
+  isTheoryCollapsed?: boolean;
+  onToggleTheory?: () => void;
+  isSwapped?: boolean;
+  onSwapPanels?: () => void;
+  onResetLayout?: () => void;
+  onDragStartPanel?: (e: React.DragEvent) => void;
+  onDragOverPanel?: (e: React.DragEvent) => void;
+  onDropPanel?: (e: React.DragEvent) => void;
+  isDragTarget?: boolean;
 }
 
 type TabType = "terminal" | "stdin" | "tests";
@@ -122,9 +140,93 @@ function getQuickPresets(currentTask?: LessonTask, lesson?: Lesson): QuickPreset
   return presets.slice(0, 4);
 }
 
-export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: CodeEditorProps) {
+export function CodeEditor({
+  lesson,
+  activeTaskId,
+  onSelectTask,
+  onSuccess,
+  isTheoryCollapsed,
+  onToggleTheory,
+  isSwapped,
+  onSwapPanels,
+  onResetLayout,
+  onDragStartPanel,
+  onDragOverPanel,
+  onDropPanel,
+  isDragTarget,
+}: CodeEditorProps) {
   const toast = useToast();
   const progress = useProgress();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Flexible Terminal Panel State (Height + Collapsed)
+  const [terminalHeight, setTerminalHeight] = useState<number>(320);
+  const [isTerminalCollapsed, setIsTerminalCollapsed] = useState<boolean>(false);
+  const [isResizingTerminal, setIsResizingTerminal] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      const savedH = localStorage.getItem("jf_terminal_height");
+      if (savedH) {
+        const parsed = Number(savedH);
+        if (Number.isFinite(parsed) && parsed >= 120 && parsed <= 650) {
+          setTerminalHeight(parsed);
+        }
+      }
+      const savedC = localStorage.getItem("jf_terminal_collapsed");
+      if (savedC === "true") {
+        setIsTerminalCollapsed(true);
+      }
+    } catch {}
+  }, []);
+
+  const toggleTerminalCollapsed = (nextState?: boolean) => {
+    setIsTerminalCollapsed((prev) => {
+      const val = nextState !== undefined ? nextState : !prev;
+      try {
+        localStorage.setItem("jf_terminal_collapsed", String(val));
+      } catch {}
+      return val;
+    });
+  };
+
+  const handleTerminalResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingTerminal(true);
+    const startY = e.clientY;
+    const startHeight = isTerminalCollapsed ? 36 : terminalHeight;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = startY - moveEvent.clientY;
+      const containerH = containerRef.current?.clientHeight ?? window.innerHeight;
+      const maxH = Math.min(680, Math.floor(containerH * 0.78));
+      const newH = Math.round(startHeight + deltaY);
+
+      if (newH < 80) {
+        setIsTerminalCollapsed(true);
+        try {
+          localStorage.setItem("jf_terminal_collapsed", "true");
+        } catch {}
+      } else {
+        const clamped = Math.max(120, Math.min(maxH, newH));
+        setIsTerminalCollapsed(false);
+        setTerminalHeight(clamped);
+        try {
+          localStorage.setItem("jf_terminal_collapsed", "false");
+          localStorage.setItem("jf_terminal_height", String(clamped));
+        } catch {}
+      }
+    };
+
+    const onMouseUp = () => {
+      setIsResizingTerminal(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
 
   // Tasks of this day (fallback to root if empty)
   const tasks: LessonTask[] = lesson.tasks && lesson.tasks.length > 0 ? lesson.tasks : [];
@@ -271,6 +373,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
   const handleRun = async (overrideStdin?: string, clearSession = false) => {
     setIsRunning(true);
     setActiveTab("terminal");
+    if (isTerminalCollapsed) toggleTerminalCollapsed(false);
     try {
       const activeCode = editorRef.current ? editorRef.current.getValue() : code;
       if (activeCode !== code) setCode(activeCode);
@@ -395,6 +498,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
   const handleCheck = async () => {
     setIsChecking(true);
     setActiveTab("tests");
+    if (isTerminalCollapsed) toggleTerminalCollapsed(false);
     try {
       const activeCode = editorRef.current ? editorRef.current.getValue() : code;
       if (activeCode !== code) setCode(activeCode);
@@ -503,7 +607,17 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
   const allTasksCompleted = tasks.length > 0 && tasks.every((t) => completedInDay.includes(t.id));
 
   return (
-    <div className="flex h-full flex-col bg-[#09090b]">
+    <div
+      ref={containerRef}
+      onDragOver={onDragOverPanel}
+      onDrop={onDropPanel}
+      className={`relative flex h-full flex-col bg-[#09090b] transition-all ${
+        isDragTarget ? "ring-2 ring-inset ring-orange-500/70 bg-orange-500/5" : ""
+      }`}
+    >
+      {isResizingTerminal && (
+        <div className="fixed inset-0 z-50 cursor-row-resize select-none" />
+      )}
       {/* 3 Tasks Selector Bar (if lesson has multiple tasks) */}
       {tasks.length > 1 && (
         <div className="flex items-center justify-between border-b border-white/[0.08] bg-[#0c0c0e] px-3 py-1.5 overflow-x-auto">
@@ -556,9 +670,68 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
       )}
 
       {/* Editor Top Toolbar */}
-      <div className="flex h-11 items-center justify-between border-b border-white/[0.08] bg-[#09090b] px-4">
-        {/* Left: File tab + language */}
-        <div className="flex items-center gap-2">
+      <div className="flex h-11 items-center justify-between border-b border-white/[0.08] bg-[#09090b] px-3 sm:px-4">
+        {/* Left: Drag Handle + Window Controls + File tab */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Drag-to-swap grip handle (Desktop) */}
+          {onDragStartPanel && (
+            <div
+              draggable
+              onDragStart={onDragStartPanel}
+              className="hidden lg:flex h-7 w-6 cursor-grab active:cursor-grabbing items-center justify-center rounded-md text-zinc-500 hover:bg-white/5 hover:text-orange-400 transition"
+              title="Перетащи за этот значок на соседнее окно, чтобы поменять местами Код и Теорию"
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </div>
+          )}
+
+          {/* Toggle Theory / Fullscreen Code Button (Desktop) */}
+          {onToggleTheory && (
+            <button
+              type="button"
+              onClick={onToggleTheory}
+              className={`hidden lg:flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs font-medium transition ${
+                isTheoryCollapsed
+                  ? "border-orange-500/40 bg-orange-500/15 text-orange-300 hover:bg-orange-500/25 hover:text-white shadow-sm"
+                  : "border-white/10 bg-zinc-900/70 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+              }`}
+              title={
+                isTheoryCollapsed
+                  ? "Открыть панель теории"
+                  : "Скрыть теорию и развернуть редактор кода на весь экран"
+              }
+            >
+              {isTheoryCollapsed ? (
+                <>
+                  <BookOpen className="h-3.5 w-3.5 text-orange-400" />
+                  <span>Открыть теорию</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="h-3 w-3 text-zinc-400" />
+                  <span className="hidden xl:inline">На весь экран</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Swap Left <-> Right Panels Button (Desktop) */}
+          {onSwapPanels && !isTheoryCollapsed && (
+            <button
+              type="button"
+              onClick={onSwapPanels}
+              className={`hidden lg:flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition ${
+                isSwapped
+                  ? "border-orange-500/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20"
+                  : "border-white/10 bg-zinc-900/70 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+              }`}
+              title="Поменять местами окна (Теория ⇄ Редактор кода)"
+            >
+              <ArrowLeftRight className="h-3 w-3" />
+              <span className="hidden 2xl:inline">Окна ⇄</span>
+            </button>
+          )}
+
           <div className="flex items-center gap-1.5 rounded-md bg-zinc-900 border border-white/5 px-2.5 py-1 text-xs font-mono text-zinc-300">
             <span className="h-2 w-2 rounded-full bg-orange-400" />
             <span>Main.java</span>
@@ -566,11 +739,11 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
           {isCurrentTaskCompleted ? (
             <span className="flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
               <Check className="h-3 w-3" />
-              Задача сдана
+              <span className="hidden sm:inline">Задача сдана</span>
             </span>
           ) : (
             <span
-              className="hidden sm:flex items-center gap-1 text-[11px] text-zinc-500"
+              className="hidden xl:flex items-center gap-1 text-[11px] text-zinc-500"
               title="Система проверяет требования к синтаксису и скрытые тест-кейсы"
             >
               <ShieldAlert className="h-3 w-3 text-orange-400/80" />
@@ -626,7 +799,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
       </div>
 
       {/* Monaco Code Editor Area */}
-      <div className="relative flex-1 min-h-[260px]">
+      <div className="relative flex-1 min-h-[140px]">
         <Editor
           height="100%"
           language="java"
@@ -702,16 +875,51 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
         />
       </div>
 
+      {/* Draggable Vertical Splitter Handle for Terminal */}
+      <div
+        onMouseDown={handleTerminalResizeStart}
+        onDoubleClick={() => {
+          if (isTerminalCollapsed) {
+            toggleTerminalCollapsed(false);
+          } else {
+            setTerminalHeight(320);
+            try {
+              localStorage.setItem("jf_terminal_height", "320");
+            } catch {}
+          }
+        }}
+        title="Потяни вверх/вниз для изменения размера терминала (двойной клик — сброс)"
+        className={`group relative z-20 flex h-2 w-full cursor-row-resize items-center justify-center border-t transition-colors select-none ${
+          isResizingTerminal
+            ? "border-orange-500 bg-orange-500/30"
+            : "border-white/[0.08] bg-[#0c0c0e] hover:border-orange-500/50 hover:bg-orange-500/15"
+        }`}
+      >
+        <div
+          className={`h-1 w-10 rounded-full transition-all ${
+            isResizingTerminal
+              ? "bg-orange-400 w-16"
+              : "bg-zinc-700 group-hover:bg-orange-400 group-hover:w-14"
+          }`}
+        />
+      </div>
+
       {/* Bottom Panel (Terminal / stdin / tests) */}
-      <div className="flex h-80 sm:h-96 flex-col border-t border-white/[0.08] bg-[#0c0c0e]">
+      <div
+        style={{ height: isTerminalCollapsed ? 36 : terminalHeight }}
+        className="flex shrink-0 flex-col bg-[#0c0c0e] transition-[height] duration-75"
+      >
         {/* Tab Headers */}
-        <div className="flex h-9 items-center justify-between border-b border-white/[0.06] px-3">
+        <div className="flex h-9 shrink-0 items-center justify-between border-b border-white/[0.06] px-3">
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setActiveTab("terminal")}
+              onClick={() => {
+                setActiveTab("terminal");
+                if (isTerminalCollapsed) toggleTerminalCollapsed(false);
+              }}
               className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                activeTab === "terminal"
+                activeTab === "terminal" && !isTerminalCollapsed
                   ? "bg-white/10 text-zinc-100"
                   : "text-zinc-400 hover:bg-white/5 hover:text-zinc-300"
               }`}
@@ -731,9 +939,12 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
 
             <button
               type="button"
-              onClick={() => setActiveTab("stdin")}
+              onClick={() => {
+                setActiveTab("stdin");
+                if (isTerminalCollapsed) toggleTerminalCollapsed(false);
+              }}
               className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                activeTab === "stdin"
+                activeTab === "stdin" && !isTerminalCollapsed
                   ? "bg-white/10 text-zinc-100"
                   : "text-zinc-400 hover:bg-white/5 hover:text-zinc-300"
               }`}
@@ -747,9 +958,12 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
 
             <button
               type="button"
-              onClick={() => setActiveTab("tests")}
+              onClick={() => {
+                setActiveTab("tests");
+                if (isTerminalCollapsed) toggleTerminalCollapsed(false);
+              }}
               className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                activeTab === "tests"
+                activeTab === "tests" && !isTerminalCollapsed
                   ? "bg-white/10 text-zinc-100"
                   : "text-zinc-400 hover:bg-white/5 hover:text-zinc-300"
               }`}
@@ -766,10 +980,10 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
             </button>
           </div>
 
-          {/* Execution details & Clear */}
-          <div className="flex items-center gap-3">
+          {/* Execution details, Clear & Collapse/Close Terminal */}
+          <div className="flex items-center gap-2 sm:gap-3">
             {runResult && (
-              <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-500">
+              <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono text-zinc-500">
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {runResult.timeMs} мс
@@ -778,7 +992,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
                 <span className="capitalize">{runResult.provider}</span>
               </div>
             )}
-            {activeTab === "terminal" && (runResult || sessionInputs.length > 0) && (
+            {!isTerminalCollapsed && activeTab === "terminal" && (runResult || sessionInputs.length > 0) && (
               <button
                 type="button"
                 onClick={handleClearTerminal}
@@ -786,13 +1000,38 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
                 title="Очистить терминал"
               >
                 <RotateCcw className="h-3 w-3" />
-                <span>Очистить</span>
+                <span className="hidden sm:inline">Очистить</span>
               </button>
             )}
+
+            {/* Toggle Collapse / Close Terminal Button */}
+            <button
+              type="button"
+              onClick={() => toggleTerminalCollapsed()}
+              className="flex items-center gap-1 rounded-md border border-white/10 bg-zinc-900/80 px-2 py-0.5 text-[11px] font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 transition"
+              title={
+                isTerminalCollapsed
+                  ? "Развернуть окно терминала"
+                  : "Свернуть / закрыть окно терминала, чтобы освободить место для кода"
+              }
+            >
+              {isTerminalCollapsed ? (
+                <>
+                  <ChevronUp className="h-3.5 w-3.5 text-orange-400" />
+                  <span>Развернуть</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Скрыть</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
         {/* Tab Content */}
+        {!isTerminalCollapsed && (
         <div className="flex-1 overflow-y-auto p-3 font-mono text-xs">
           {activeTab === "terminal" && (
             <div className="h-full flex flex-col justify-between -m-3">
@@ -1158,6 +1397,7 @@ export function CodeEditor({ lesson, activeTaskId, onSelectTask, onSuccess }: Co
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

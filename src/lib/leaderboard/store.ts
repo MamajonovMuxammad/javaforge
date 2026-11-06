@@ -18,7 +18,7 @@ export interface LeaderboardEntry {
 
 const PEER_STUDENTS = [
   {
-    id: "cmvkkl34d0000jv086y8tjidg",
+    id: "pub_nazar",
     username: "Nazar",
     avatar: "⚡️",
     xp: 605,
@@ -27,7 +27,7 @@ const PEER_STUDENTS = [
     streak: 3,
   },
   {
-    id: "cmvi7jwgy0000egwoq8v5rv10",
+    id: "pub_wercis",
     username: "wercis",
     avatar: "🚀",
     xp: 385,
@@ -36,7 +36,7 @@ const PEER_STUDENTS = [
     streak: 2,
   },
   {
-    id: "cmvjf8aco0000jq0743nk68wk",
+    id: "pub_skittler",
     username: "Skittler",
     avatar: "👾",
     xp: 300,
