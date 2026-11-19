@@ -38,12 +38,6 @@ function getClientAuthHeaders(): Record<string, string> {
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
-    const rawSession = localStorage.getItem("javaforge_session_v2");
-    if (rawSession) {
-      const parsed = JSON.parse(rawSession);
-      if (parsed?.id) headers["X-User-Id"] = String(parsed.id);
-      if (parsed?.username) headers["X-Username"] = String(parsed.username);
-    }
   } catch {}
   return headers;
 }
@@ -142,7 +136,6 @@ export async function syncNow(): Promise<void> {
     syncTimer = null;
   }
   const headers = getClientAuthHeaders();
-  if (!headers.Authorization && !headers["X-User-Id"]) return;
 
   try {
     const res = await fetch("/api/progress", {

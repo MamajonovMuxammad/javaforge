@@ -25,6 +25,7 @@ import {
   LogOut,
   Lock,
   HelpCircle,
+  Brain,
 } from "lucide-react";
 import { useAuth, logoutUser } from "@/lib/auth/store";
 import { useProgress } from "@/lib/progress/store";
@@ -134,6 +135,13 @@ export function LandingPage({
             >
               <Code2 className="h-3.5 w-3.5 text-orange-400" />
               <span>Доп. задания</span>
+            </Link>
+            <Link
+              href="/quiz"
+              className="flex items-center gap-1.5 transition hover:text-sky-300 text-sky-400/90 font-semibold"
+            >
+              <Brain className="h-3.5 w-3.5 text-sky-400" />
+              <span>Квизы & Собес</span>
             </Link>
             <Link
               href="/leaderboard"

@@ -59,9 +59,13 @@ export function countRealCompletedTasks(progress: ProgressState): number {
   const countedDays = new Set<number>();
 
   for (const [dayStr, tasks] of Object.entries(sanitized.completedTasks || {})) {
+    if (dayStr === "practice" || dayStr === "quiz") {
+      if (Array.isArray(tasks)) count += tasks.length;
+      continue;
+    }
     const dayNum = Number(dayStr);
     // Day 0 is Module 0 (environment setup) and has 0 coding tasks
-    if (dayNum <= 0) continue;
+    if (!Number.isInteger(dayNum) || dayNum <= 0) continue;
     countedDays.add(dayNum);
     if (Array.isArray(tasks)) {
       count += sanitized.completedDays.includes(dayNum) ? Math.max(tasks.length, 3) : tasks.length;

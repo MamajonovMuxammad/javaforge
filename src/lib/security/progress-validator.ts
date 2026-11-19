@@ -81,6 +81,19 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
     completedTasks["practice"] = cleanPracticeTasks;
   }
 
+  // Sanitize server-awarded mastered quiz questions
+  const rawQuiz = Array.isArray(rawTasks["quiz"]) ? rawTasks["quiz"] : [];
+  const cleanQuizTasks = Array.from(
+    new Set(
+      rawQuiz
+        .map((t) => String(t).trim())
+        .filter((t) => t.length > 0 && t.length <= 64)
+    )
+  );
+  if (cleanQuizTasks.length > 0) {
+    completedTasks["quiz"] = cleanQuizTasks;
+  }
+
   const completedDays = Array.from(completedDaysSet).sort((a, b) => a - b);
 
   // 3. Base XP from completed days (50 XP for Day 0 intro, 100 XP per regular day)
@@ -88,7 +101,7 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
 
   // 4. Partial XP from uncompleted days that have completed tasks
   for (const [dayStr, cleanTaskIds] of Object.entries(completedTasks)) {
-    if (dayStr === "practice") continue;
+    if (dayStr === "practice" || dayStr === "quiz") continue;
     const dayNum = Number(dayStr);
     if (!completedDaysSet.has(dayNum)) {
       const partialXp = Math.min(cleanTaskIds.length * 35, 100);
@@ -99,6 +112,11 @@ export function validateAndSanitizeProgress(rawState: ProgressState): {
   // 4b. Bonus XP from completed practice challenges (~30 XP average per task)
   if (cleanPracticeTasks.length > 0) {
     baseXp += cleanPracticeTasks.length * 30;
+  }
+
+  // 4c. Bonus XP from server-graded quiz mastery (15 XP per unique mastered question)
+  if (cleanQuizTasks.length > 0) {
+    baseXp += cleanQuizTasks.length * 15;
   }
 
   // 4. Sanitize stats

@@ -114,8 +114,15 @@ export async function POST(request: Request) {
     const existingAch = (existing?.achievements as Record<string, string>) || {};
     const mergedAchievements = { ...existingAch, ...sanitized.achievements };
 
-    const existingCompletedAt = (existing?.completedAt as Record<string, string>) || {};
-    const mergedCompletedAt = { ...existingCompletedAt, ...sanitized.completedAt };
+    const existingCompletedAt = (existing?.completedAt as Record<string, unknown>) || {};
+    const serverQuizStats = existingCompletedAt["__quiz_server_stats_v1__"];
+    const sanitizedExistingCompletedAt: Record<string, string> = {};
+    for (const [k, v] of Object.entries(existingCompletedAt)) {
+      if (k !== "__quiz_server_stats_v1__" && typeof v === "string") {
+        sanitizedExistingCompletedAt[k] = v;
+      }
+    }
+    const mergedCompletedAt = { ...sanitizedExistingCompletedAt, ...sanitized.completedAt };
 
     const runsCount = Math.max(existing?.runsCount || 0, sanitized.stats.runs);
     const checksCount = Math.max(existing?.checksCount || 0, sanitized.stats.checks);
@@ -140,6 +147,10 @@ export async function POST(request: Request) {
       stats: { runs: runsCount, checks: checksCount, compileErrors: compileErrorsCount, scannerDays },
     });
 
+    const dbCompletedAt: Record<string, unknown> = serverQuizStats
+      ? { ...finalSanitized.completedAt, __quiz_server_stats_v1__: serverQuizStats }
+      : { ...finalSanitized.completedAt };
+
     // Save merged state in transactional update
     await prisma.$transaction([
       prisma.userProgress.upsert({
@@ -148,7 +159,7 @@ export async function POST(request: Request) {
           userId: session.userId,
           completedDays: finalSanitized.completedDays,
           completedTasks: finalSanitized.completedTasks as unknown as Prisma.InputJsonValue,
-          completedAt: finalSanitized.completedAt as unknown as Prisma.InputJsonValue,
+          completedAt: dbCompletedAt as unknown as Prisma.InputJsonValue,
           code: finalSanitized.code as unknown as Prisma.InputJsonValue,
           achievements: finalSanitized.achievements as unknown as Prisma.InputJsonValue,
           runsCount: finalSanitized.stats.runs,
@@ -159,7 +170,7 @@ export async function POST(request: Request) {
         update: {
           completedDays: finalSanitized.completedDays,
           completedTasks: finalSanitized.completedTasks as unknown as Prisma.InputJsonValue,
-          completedAt: finalSanitized.completedAt as unknown as Prisma.InputJsonValue,
+          completedAt: dbCompletedAt as unknown as Prisma.InputJsonValue,
           code: finalSanitized.code as unknown as Prisma.InputJsonValue,
           achievements: finalSanitized.achievements as unknown as Prisma.InputJsonValue,
           runsCount: finalSanitized.stats.runs,

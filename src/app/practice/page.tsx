@@ -35,6 +35,7 @@ import {
   Binary,
   Server,
   Loader2,
+  Brain,
 } from "lucide-react";
 
 type DifficultyFilter = "all" | "Лёгкий" | "Средний" | "Сложный";
@@ -168,6 +169,15 @@ function PracticeArenaContent() {
 
         {/* User Quick Stats */}
         <div className="flex items-center gap-3">
+          <Link
+            href="/quiz"
+            className="flex items-center gap-1.5 rounded-lg border border-sky-500/35 bg-sky-500/15 px-2.5 py-1 text-xs font-semibold text-sky-200 transition hover:bg-sky-500/25 hover:text-white"
+            title="Перейти к квизам и подготовке к собеседованию"
+          >
+            <Brain className="h-3.5 w-3.5 text-sky-400" />
+            <span className="hidden sm:inline">Квизы & Собес</span>
+          </Link>
+
           <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-300">
             <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
             <span className="font-mono">+{earnedPracticeXp}</span>
